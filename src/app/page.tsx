@@ -13,12 +13,12 @@ export default function Home() {
           tasks, and family coordination—running entirely in your home.
         </p>
         <div className="flex gap-4 justify-center">
-          <Button asChild size="lg">
-            <Link href="/register">Get Started</Link>
-          </Button>
-          <Button asChild variant="outline" size="lg">
-            <Link href="/login">Sign In</Link>
-          </Button>
+          <Link href="/register">
+            <Button size="lg">Get Started</Button>
+          </Link>
+          <Link href="/login">
+            <Button variant="outline" size="lg">Sign In</Button>
+          </Link>
         </div>
       </div>
     </main>
