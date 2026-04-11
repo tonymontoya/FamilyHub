@@ -1,0 +1,86 @@
+version: '3.8'
+
+# Family Hub - Production Docker Compose
+# For local development, use docker-compose.dev.yml
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: familyhub-app
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://familyhub:${DB_PASSWORD}@db:5432/familyhub
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - STORAGE_TYPE=${STORAGE_TYPE:-local}
+      - UPLOAD_DIR=${UPLOAD_DIR:-/app/uploads}
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-5242880}
+      - MAX_MEMBERS=${MAX_MEMBERS:-10}
+      - MAX_CHORES=${MAX_CHORES:-100}
+      - MAX_TODOS=${MAX_TODOS:-200}
+      - MAX_STORAGE_MB=${MAX_STORAGE_MB:-1024}
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      - "${PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - familyhub-network
+
+  db:
+    image: postgres:16-alpine
+    container_name: familyhub-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=familyhub
+      - POSTGRES_USER=familyhub
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U familyhub -d familyhub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - familyhub-network
+
+  # Optional: PgBouncer for connection pooling (uncomment for production)
+  # pgbouncer:
+  #   image: pgbouncer/pgbouncer:latest
+  #   container_name: familyhub-pgbouncer
+  #   restart: unless-stopped
+  #   environment:
+  #     - DATABASES_HOST=db
+  #     - DATABASES_PORT=5432
+  #     - DATABASES_DATABASE=familyhub
+  #     - DATABASES_USER=familyhub
+  #     - DATABASES_PASSWORD=${DB_PASSWORD}
+  #     - POOL_MODE=transaction
+  #     - MAX_CLIENT_CONN=100
+  #   depends_on:
+  #     - db
+  #   networks:
+  #     - familyhub-network
+
+volumes:
+  postgres_data:
+    driver: local
+  uploads:
+    driver: local
+
+networks:
+  familyhub-network:
+    driver: bridge

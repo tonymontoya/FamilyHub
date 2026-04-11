@@ -1,0 +1,72 @@
+version: '3.8'
+
+# Family Hub - Development Docker Compose
+# Usage: docker compose -f docker-compose.dev.yml up
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: familyhub-dev
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://familyhub:devpassword@db:5432/familyhub_dev
+      - BETTER_AUTH_SECRET=dev-secret-not-for-production-change-me
+      - STORAGE_TYPE=local
+      - UPLOAD_DIR=/app/uploads
+      - DEBUG=familyhub:*
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - uploads:/app/uploads
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - familyhub-dev-network
+
+  db:
+    image: postgres:16-alpine
+    container_name: familyhub-db-dev
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=familyhub_dev
+      - POSTGRES_USER=familyhub
+      - POSTGRES_PASSWORD=devpassword
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"  # Exposed for local Prisma access
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U familyhub -d familyhub_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - familyhub-dev-network
+
+  # Optional: Mailpit for testing emails locally
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: familyhub-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"  # Web UI
+      - "1025:1025"  # SMTP
+    networks:
+      - familyhub-dev-network
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  uploads:
+    driver: local
+
+networks:
+  familyhub-dev-network:
+    driver: bridge

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Discussions
+    url: https://github.com/tonymontoya/FamilyHub/discussions
+    about: Ask questions, share ideas, or get help with setup
+  - name: Security Issue
+    url: https://github.com/tonymontoya/FamilyHub/security/advisories/new
+    about: Report a security vulnerability privately
