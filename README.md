@@ -21,6 +21,7 @@ A free, open-source family management platform for organizing chores, tasks, and
 | 📝 **Chores** | ✅ MVP | Recurring tasks with points, parent approval workflow |
 | ✅ **Todos** | ✅ MVP | Simple task management for the whole family |
 | 🏆 **Rewards** | ✅ MVP | Points system with parent-managed rewards |
+| 📋 **Lists** | ✅ MVP | Shopping lists, packing lists, wishlists with drag-and-drop |
 | 📅 **Calendar** | 🚧 Planned | Family scheduling with external sync |
 | 🍽️ **Meal Planning** | 🚧 Planned | Recipe collection, meal planning, shopping lists |
 | 📊 **Dashboard** | ✅ MVP | Today's priorities at a glance |
@@ -65,16 +66,14 @@ npm run dev
 
 ## 📖 Documentation
 
-- [📋 Full Requirements Document (FRD)](./FRD.md) - Comprehensive product specification
-- [🐳 Deployment Guide](./docs/deployment.md) - Production deployment options
-- [🔧 Development Setup](./docs/development.md) - Local development guide
 - [🤝 Contributing](./CONTRIBUTING.md) - How to contribute
+- [🛡️ Security](./SECURITY.md) - Security policy and reporting
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Next.js 15    │────▶│  PostgreSQL 16  │     │  Local Storage  │
+│   Next.js 16    │────▶│  PostgreSQL 16  │     │  Local Storage  │
 │   (Frontend)    │     │   (Database)    │     │  (Photos/Files) │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
          │
@@ -86,7 +85,7 @@ npm run dev
 ```
 
 **Tech Stack:**
-- **Frontend:** Next.js 15, TypeScript, Tailwind CSS, Shadcn UI
+- **Frontend:** Next.js 16, TypeScript, Tailwind CSS, Radix UI, Shadcn UI
 - **Backend:** Next.js API Routes, tRPC (optional)
 - **Database:** PostgreSQL 16, Prisma ORM
 - **Auth:** Better-Auth (session-based)
@@ -114,8 +113,8 @@ We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
 
 | Phase | Timeline | Focus |
 |-------|----------|-------|
-| v0.1 MVP | Now | Chores, Todos, Dashboard, Points |
-| v0.2 | Q2 2026 | Calendar, Lists, Natural language input |
+| v0.1 MVP | Now | Chores, Todos, Lists, Dashboard, Points |
+| v0.2 | Q2 2026 | Calendar, Natural language input |
 | v0.3 | Q3 2026 | Meal planning, Plans module, Home Assistant integration |
 | v1.0 | Q4 2026 | Native apps, advanced gamification, plugin system |
 

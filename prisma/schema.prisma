@@ -19,6 +19,7 @@ model Family {
   members Member[]
   chores  Chore[]
   todos   Todo[]
+  lists   List[]
 
   @@map("families")
 }
@@ -40,6 +41,8 @@ model Member {
   todos               Todo[]
   points              PointTransaction[]
   assignedChores      Chore[]
+  createdLists        List[]             @relation("ListCreator")
+  completedListItems  ListItem[]         @relation("ListItemCompleter")
 
   @@index([familyId, role])
   @@map("members")
@@ -117,6 +120,51 @@ model Todo {
   @@map("todos")
 }
 
+model List {
+  id          String    @id @default(uuid())
+  familyId    String    @map("family_id")
+  title       String    @db.VarChar(100)
+  type        ListType  @default(CUSTOM)
+  description String?   @db.VarChar(500)
+  createdById String    @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  family    Family     @relation(fields: [familyId], references: [id])
+  items     ListItem[]
+  createdBy Member     @relation("ListCreator", fields: [createdById], references: [id])
+
+  @@index([familyId, type])
+  @@index([familyId, deletedAt])
+  @@index([updatedAt])
+  @@map("lists")
+}
+
+model ListItem {
+  id          String    @id @default(uuid())
+  listId      String    @map("list_id")
+  name        String    @db.VarChar(100)
+  quantity    Int       @default(1)
+  notes       String?   @db.VarChar(200)
+  completed   Boolean   @default(false)
+  completedBy String?   @map("completed_by_id")
+  completedAt DateTime? @map("completed_at")
+  sortOrder   Int       @default(0) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  list      List    @relation(fields: [listId], references: [id], onDelete: Cascade)
+  completer Member? @relation("ListItemCompleter", fields: [completedBy], references: [id])
+
+  @@index([listId, completed])
+  @@index([listId, deletedAt])
+  @@index([sortOrder])
+  @@index([completedBy])
+  @@map("list_items")
+}
+
 model PointTransaction {
   id          String    @id @default(uuid())
   memberId    String    @map("member_id")
@@ -158,6 +206,13 @@ enum TodoStatus {
 enum PointType {
   EARNED
   REDEEMED
+}
+
+enum ListType {
+  SHOPPING
+  PACKING
+  WISHLIST
+  CUSTOM
 }
 
 model User {
