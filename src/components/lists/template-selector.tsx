@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import { ShoppingBag, Luggage, Gift, List } from "lucide-react"
+import { ShoppingBag, Luggage, Gift, List, FilePlus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -19,14 +19,21 @@ interface TemplateSelectorProps {
   onOpenChange: (open: boolean) => void
   selectedType: ListType
   onSelectTemplate: (template: ListTemplate) => void
+  onSkipTemplate: () => void
 }
 
-const typeIcons: Record<ListType | "all", typeof ShoppingBag> = {
+const typeIcons: Record<ListType, typeof ShoppingBag> = {
   SHOPPING: ShoppingBag,
   PACKING: Luggage,
   WISHLIST: Gift,
   CUSTOM: List,
-  all: List,
+}
+
+const typeLabels: Record<ListType, string> = {
+  SHOPPING: "shopping",
+  PACKING: "packing",
+  WISHLIST: "wishlist",
+  CUSTOM: "custom",
 }
 
 export function TemplateSelector({
@@ -34,6 +41,7 @@ export function TemplateSelector({
   onOpenChange,
   selectedType,
   onSelectTemplate,
+  onSkipTemplate,
 }: TemplateSelectorProps) {
   const templates = useMemo(() => {
     return listTemplates.filter(
@@ -50,26 +58,34 @@ export function TemplateSelector({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Icon className="h-5 w-5" />
-            Choose a Template
+            Choose a Starting Point
           </DialogTitle>
           <DialogDescription>
-            Start with a pre-made list of items for your {selectedType.toLowerCase()} list.
+            Start with a pre-made template or create an empty {typeLabels[selectedType]} list.
           </DialogDescription>
         </DialogHeader>
 
         {!hasTemplates ? (
           <div className="py-8 text-center text-muted-foreground">
-            <p>No templates available for {selectedType.toLowerCase()} lists.</p>
-            <p className="text-sm mt-2">Create a custom list instead.</p>
+            <p>No templates available for {typeLabels[selectedType]} lists.</p>
+            <Button 
+              onClick={onSkipTemplate}
+              className="mt-4"
+            >
+              Create Empty List
+            </Button>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 mt-4">
             {/* Start from scratch option */}
             <button
-              onClick={() => onOpenChange(false)}
-              className="flex flex-col items-start p-4 rounded-lg border hover:bg-muted/50 transition-colors text-left h-full"
+              onClick={onSkipTemplate}
+              className="flex flex-col items-start p-4 rounded-lg border hover:bg-muted/50 hover:border-primary transition-colors text-left h-full"
             >
-              <div className="font-medium mb-1">Start from scratch</div>
+              <div className="flex items-center gap-2 mb-2">
+                <FilePlus className="h-5 w-5 text-muted-foreground" />
+                <span className="font-medium">Start from scratch</span>
+              </div>
               <div className="text-sm text-muted-foreground">
                 Create an empty list and add your own items
               </div>
@@ -95,7 +111,7 @@ export function TemplateSelector({
         )}
 
         <div className="flex justify-end mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
         </div>
