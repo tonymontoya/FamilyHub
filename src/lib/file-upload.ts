@@ -10,10 +10,13 @@ import { promises as fs } from "fs"
 import path from "path"
 import { v4 as uuidv4 } from "uuid"
 
-// Constants
-export const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
-export const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png"] as const
-export const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png"] as const
+import {
+  MAX_FILE_SIZE,
+  ALLOWED_MIME_TYPES,
+  ALLOWED_EXTENSIONS,
+} from "./file-upload-constants"
+
+export { MAX_FILE_SIZE, ALLOWED_MIME_TYPES, ALLOWED_EXTENSIONS }
 export const UPLOAD_DIR = process.env.UPLOAD_DIR || "./uploads/completions"
 
 export interface FileValidationResult {

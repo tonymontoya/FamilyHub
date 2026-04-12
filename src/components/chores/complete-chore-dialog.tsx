@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { MAX_FILE_SIZE, ALLOWED_MIME_TYPES } from "@/lib/file-upload"
+import { MAX_FILE_SIZE, ALLOWED_MIME_TYPES } from "@/lib/file-upload-constants"
 
 interface CompleteChoreDialogProps {
   chore: {
