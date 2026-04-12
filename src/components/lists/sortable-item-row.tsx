@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useState, useMemo } from "react"
 import { CSS } from "@dnd-kit/utilities"
 import {
   useSortable,
@@ -27,9 +27,10 @@ import type { ListItem as ListItemType } from "@/hooks/lists"
 interface SortableItemRowProps {
   item: ListItemType
   listId: string
+  isActive?: boolean
 }
 
-export function SortableItemRow({ item, listId }: SortableItemRowProps) {
+export function SortableItemRow({ item, listId, isActive: isDraggingOverlay }: SortableItemRowProps) {
   const toggleItem = useToggleItem()
   const deleteItem = useDeleteItem()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -44,13 +45,17 @@ export function SortableItemRow({ item, listId }: SortableItemRowProps) {
   } = useSortable({
     id: item.id,
     disabled: deleteItem.isPending,
+    data: {
+      item,
+    },
   })
 
-  const style = {
+  // Memoize style to prevent unnecessary re-renders
+  const style = useMemo(() => ({
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 50 : undefined,
-  }
+  }), [transform, transition, isDragging])
 
   const handleToggle = useCallback(() => {
     const newCompleted = !item.completed
@@ -108,15 +113,17 @@ export function SortableItemRow({ item, listId }: SortableItemRowProps) {
           "group flex items-center gap-3 rounded-lg border bg-card p-3 transition-all",
           item.completed && "bg-muted/50",
           deleteItem.isPending && "opacity-50",
-          isDragging && "shadow-lg ring-2 ring-primary"
+          isDragging && "shadow-lg ring-2 ring-primary opacity-50",
+          isDraggingOverlay && "opacity-0"
         )}
         role="listitem"
+        aria-grabbed={isDragging}
       >
         {/* Drag Handle */}
         <button
           type="button"
-          className="cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
-          aria-label="Drag to reorder"
+          className="cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing touch-none"
+          aria-label={`Drag to reorder "${item.name}". Press space to lift, arrow keys to move, space to drop.`}
           {...attributes}
           {...listeners}
         >

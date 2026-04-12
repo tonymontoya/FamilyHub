@@ -1,8 +1,8 @@
 "use client"
 
-import { use, useCallback, useMemo, useState } from "react"
+import { use, useCallback, useMemo, useState, useEffect, useRef } from "react"
 import Link from "next/link"
-import { ArrowLeft, Trash2, Edit } from "lucide-react"
+import { ArrowLeft, Trash2, Edit, GripVertical } from "lucide-react"
 import { toast } from "sonner"
 import {
   DndContext,
@@ -12,6 +12,8 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
 } from "@dnd-kit/core"
 import {
   arrayMove,
@@ -39,6 +41,8 @@ import { AddItemForm } from "@/components/lists/add-item-form"
 import { EditListForm } from "@/components/lists/edit-list-form"
 import { useList, useDeleteList, useReorderItems } from "@/hooks/lists"
 import { useRouter } from "next/navigation"
+import type { ListItem } from "@/hooks/lists"
+import { cn } from "@/lib/utils"
 
 interface ListDetailPageProps {
   params: Promise<{ id: string }>
@@ -54,12 +58,19 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
   const [showEditDialog, setShowEditDialog] = useState(false)
   
   // Local state for optimistic DND reordering
-  const [items, setItems] = useState(list?.items || [])
+  const [items, setItems] = useState<ListItem[]>([])
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [announcement, setAnnouncement] = useState<string>("")
   
-  // Sync local state when data loads
-  if (list?.items && items !== list.items) {
-    setItems(list.items)
-  }
+  // Sync local state when data loads (using useEffect, not render-time)
+  useEffect(() => {
+    if (list?.items) {
+      setItems(list.items)
+    }
+  }, [list?.items])
+
+  // Memoized item IDs for SortableContext
+  const itemIds = useMemo(() => items.map((item) => item.id), [items])
 
   // Sensors for DND
   const sensors = useSensors(
@@ -74,12 +85,11 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
   )
 
   // Memoize progress calculation
-  const { completedCount, progress } = useMemo(() => {
+  const { completedCount, progress, totalCount } = useMemo(() => {
     const completed = items.filter((item) => item.completed).length
-    const prog = items.length > 0
-      ? Math.round((completed / items.length) * 100)
-      : 0
-    return { completedCount: completed, progress: prog }
+    const total = items.length
+    const prog = total > 0 ? Math.round((completed / total) * 100) : 0
+    return { completedCount: completed, progress: prog, totalCount: total }
   }, [items])
 
   const handleDeleteClick = useCallback(() => {
@@ -108,15 +118,28 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
     setShowDeleteDialog(false)
   }, [])
 
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const { active } = event
+    setActiveId(active.id as string)
+    const item = items.find((i) => i.id === active.id)
+    if (item) {
+      setAnnouncement(`Started dragging "${item.name}"`)
+    }
+  }, [items])
+
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
+    setActiveId(null)
 
     if (over && active.id !== over.id) {
-      setItems((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id)
-        const newIndex = items.findIndex((item) => item.id === over.id)
+      setItems((currentItems) => {
+        const oldIndex = currentItems.findIndex((item) => item.id === active.id)
+        const newIndex = currentItems.findIndex((item) => item.id === over.id)
 
-        const newItems = arrayMove(items, oldIndex, newIndex)
+        const newItems = arrayMove(currentItems, oldIndex, newIndex)
+        const movedItem = newItems[newIndex]
+        
+        setAnnouncement(`"${movedItem.name}" moved to position ${newIndex + 1} of ${newItems.length}`)
         
         // Persist to server
         reorderItems.mutate(
@@ -125,20 +148,32 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
             input: { itemIds: newItems.map((item) => item.id) } 
           },
           {
+            onSuccess: () => {
+              toast.success("Items reordered")
+            },
             onError: (error) => {
               toast.error("Failed to reorder items", {
                 description: error instanceof Error ? error.message : "Please try again",
               })
-              // Revert on error
-              setItems(items)
+              // Revert to server state on error
+              if (list?.items) {
+                setItems(list.items)
+              }
             },
           }
         )
 
         return newItems
       })
+    } else {
+      setAnnouncement("Reorder cancelled")
     }
-  }, [id, reorderItems])
+  }, [id, list?.items, reorderItems])
+
+  // Get active item for drag overlay
+  const activeItem = useMemo(() => {
+    return activeId ? items.find((item) => item.id === activeId) : null
+  }, [activeId, items])
 
   if (isError) {
     return (
@@ -168,6 +203,16 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
 
   return (
     <div className="container mx-auto py-8">
+      {/* Screen reader announcements for DND */}
+      <div 
+        className="sr-only" 
+        role="status" 
+        aria-live="assertive" 
+        aria-atomic="true"
+      >
+        {announcement}
+      </div>
+
       {/* Header */}
       <div className="mb-6">
         <Link href="/lists" className="mb-4 inline-flex items-center text-sm">
@@ -212,11 +257,11 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
         </div>
 
         {/* Progress */}
-        {items.length > 0 && (
+        {totalCount > 0 && (
           <div className="mt-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground" aria-live="polite">
-                {completedCount} of {items.length} completed
+                {completedCount} of {totalCount} completed
               </span>
               <span className="font-medium" aria-label={`${progress}% complete`}>
                 {progress}%
@@ -246,8 +291,16 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
         <AddItemForm listId={id} />
       </div>
 
+      {/* DND Instructions */}
+      {totalCount > 1 && (
+        <p className="mb-4 text-sm text-muted-foreground flex items-center gap-2">
+          <GripVertical className="h-4 w-4" aria-hidden="true" />
+          Drag items by the handle to reorder
+        </p>
+      )}
+
       {/* Items List with DND */}
-      {items.length === 0 ? (
+      {totalCount === 0 ? (
         <div
           className="rounded-lg border border-dashed p-8 text-center"
           role="status"
@@ -262,18 +315,44 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
+          accessibility={{
+            announcements: {
+              onDragStart: () => "",
+              onDragOver: () => "",
+              onDragEnd: () => "",
+              onDragCancel: () => "",
+            },
+          }}
         >
           <SortableContext
-            items={items.map((item) => item.id)}
+            items={itemIds}
             strategy={verticalListSortingStrategy}
           >
-            <div className="space-y-2" role="list" aria-label="List items">
+            <div className="space-y-2" role="list" aria-label="List items. Use Tab to navigate, Space to activate drag handle, arrow keys to move items.">
               {items.map((item) => (
-                <SortableItemRow key={item.id} item={item} listId={id} />
+                <SortableItemRow 
+                  key={item.id} 
+                  item={item} 
+                  listId={id}
+                  isActive={item.id === activeId}
+                />
               ))}
             </div>
           </SortableContext>
+          
+          {/* Drag Overlay for visual feedback */}
+          <DragOverlay>
+            {activeItem ? (
+              <div className="rounded-lg border bg-card p-3 shadow-xl opacity-90">
+                <div className="flex items-center gap-3">
+                  <GripVertical className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">{activeItem.name}</span>
+                </div>
+              </div>
+            ) : null}
+          </DragOverlay>
         </DndContext>
       )}
 
@@ -290,7 +369,7 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete list?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{list.title}&quot;? This will delete all {items.length} items in the list. This action cannot be undone.
+              Are you sure you want to delete &quot;{list.title}&quot;? This will delete all {totalCount} items in the list. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
