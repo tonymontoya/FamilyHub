@@ -26,8 +26,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { useCreateList } from "@/hooks/lists"
+import { useCreateList, useCreateItem } from "@/hooks/lists"
 import type { ListType } from "@prisma/client"
+import { TemplateSelector } from "./template-selector"
+import type { ListTemplate } from "@/lib/list-templates"
 
 const createListSchema = z.object({
   title: z.string().min(2, "Title must be at least 2 characters").max(100, "Title must be 100 characters or less"),
