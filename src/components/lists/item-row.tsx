@@ -1,10 +1,21 @@
 "use client"
 
-import { useState } from "react"
-import { Check, Trash2, GripVertical } from "lucide-react"
+import { useCallback, useState, useRef } from "react"
+import { Trash2, GripVertical } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
 import { useToggleItem, useDeleteItem } from "@/hooks/lists"
 import type { ListItem as ListItemType } from "@/hooks/lists"
@@ -17,78 +28,154 @@ interface ItemRowProps {
 export function ItemRow({ item, listId }: ItemRowProps) {
   const toggleItem = useToggleItem()
   const deleteItem = useDeleteItem()
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const deleteButtonRef = useRef<HTMLButtonElement>(null)
 
-  const handleToggle = () => {
-    toggleItem.mutate({
-      listId,
-      itemId: item.id,
-      completed: !item.completed,
-    })
-  }
+  const handleToggle = useCallback(() => {
+    const newCompleted = !item.completed
+    
+    toggleItem.mutate(
+      {
+        listId,
+        itemId: item.id,
+        completed: newCompleted,
+      },
+      {
+        onError: (error) => {
+          toast.error("Failed to update item", {
+            description: error instanceof Error ? error.message : "Please try again",
+          })
+        },
+      }
+    )
+  }, [item.completed, item.id, listId, toggleItem])
 
-  const handleDelete = () => {
-    setIsDeleting(true)
+  const handleDeleteClick = useCallback(() => {
+    setShowDeleteDialog(true)
+  }, [])
+
+  const handleConfirmDelete = useCallback(() => {
+    setShowDeleteDialog(false)
+    
     deleteItem.mutate(
       { listId, itemId: item.id },
       {
-        onError: () => setIsDeleting(false),
+        onSuccess: () => {
+          toast.success("Item deleted", {
+            description: `"${item.name}" has been removed`,
+            action: {
+              label: "Undo",
+              onClick: () => {
+                // Note: True undo would require a restore API
+                toast.info("Undo not yet implemented")
+              },
+            },
+          })
+        },
+        onError: (error) => {
+          toast.error("Failed to delete item", {
+            description: error instanceof Error ? error.message : "Please try again",
+          })
+        },
       }
     )
-  }
+  }, [deleteItem, item.id, item.name, listId])
+
+  const handleCancelDelete = useCallback(() => {
+    setShowDeleteDialog(false)
+    // Return focus to delete button
+    deleteButtonRef.current?.focus()
+  }, [])
 
   return (
-    <div
-      className={cn(
-        "group flex items-center gap-3 rounded-lg border p-3 transition-all",
-        item.completed && "bg-muted/50",
-        isDeleting && "opacity-50"
-      )}
-    >
-      {/* Drag Handle (for DnD - visual only for now) */}
-      <div className="cursor-grab text-muted-foreground hover:text-foreground">
-        <GripVertical className="h-4 w-4" />
-      </div>
-
-      {/* Checkbox */}
-      <Checkbox
-        checked={item.completed}
-        onCheckedChange={handleToggle}
-        disabled={toggleItem.isPending}
-      />
-
-      {/* Content */}
-      <div className="min-w-0 flex-1">
-        <div className={cn("font-medium", item.completed && "line-through text-muted-foreground")}>
-          {item.name}
-        </div>
-        {item.notes && (
-          <div className="text-sm text-muted-foreground truncate">
-            {item.notes}
-          </div>
+    <>
+      <div
+        className={cn(
+          "group flex items-center gap-3 rounded-lg border p-3 transition-all",
+          item.completed && "bg-muted/50",
+          deleteItem.isPending && "opacity-50"
         )}
-        {item.quantity > 1 && (
-          <div className="text-xs text-muted-foreground">
-            Qty: {item.quantity}
-          </div>
-        )}
-        {item.completed && item.completedBy && (
-          <div className="text-xs text-muted-foreground">
-            Completed by {item.completedBy.displayName}
-          </div>
-        )}
-      </div>
-
-      {/* Delete Button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 opacity-0 group-hover:opacity-100"
-        onClick={handleDelete}
-        disabled={deleteItem.isPending}
+        role="listitem"
       >
-        <Trash2 className="h-4 w-4 text-destructive" />
-      </Button>
-    </div>
+        {/* Drag Handle (for DnD - visual only for now) */}
+        <div 
+          className="cursor-grab text-muted-foreground hover:text-foreground"
+          aria-label="Drag to reorder"
+          role="button"
+          tabIndex={0}
+        >
+          <GripVertical className="h-4 w-4" aria-hidden="true" />
+        </div>
+
+        {/* Checkbox */}
+        <Checkbox
+          checked={item.completed}
+          onCheckedChange={handleToggle}
+          disabled={toggleItem.isPending}
+          aria-label={`Mark "${item.name}" as ${item.completed ? "incomplete" : "complete"}`}
+        />
+
+        {/* Content */}
+        <div className="min-w-0 flex-1">
+          <div 
+            className={cn(
+              "font-medium",
+              item.completed && "line-through text-muted-foreground"
+            )}
+          >
+            {item.name}
+          </div>
+          {item.notes && (
+            <div className="text-sm text-muted-foreground truncate">
+              {item.notes}
+            </div>
+          )}
+          {item.quantity > 1 && (
+            <div className="text-xs text-muted-foreground">
+              Qty: {item.quantity}
+            </div>
+          )}
+          {item.completed && item.completedBy && (
+            <div className="text-xs text-muted-foreground">
+              Completed by {item.completedBy.displayName}
+            </div>
+          )}
+        </div>
+
+        {/* Delete Button */}
+        <Button
+          ref={deleteButtonRef}
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 opacity-0 group-hover:opacity-100 focus:opacity-100"
+          onClick={handleDeleteClick}
+          disabled={deleteItem.isPending}
+          aria-label={`Delete "${item.name}"`}
+        >
+          <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
+        </Button>
+      </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;{item.name}&quot;? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelDelete}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

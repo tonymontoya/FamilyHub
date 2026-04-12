@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -29,9 +30,9 @@ import { useCreateList } from "@/hooks/lists"
 import type { ListType } from "@prisma/client"
 
 const createListSchema = z.object({
-  title: z.string().min(2, "Title must be at least 2 characters"),
+  title: z.string().min(2, "Title must be at least 2 characters").max(100, "Title must be 100 characters or less"),
   type: z.enum(["SHOPPING", "PACKING", "WISHLIST", "CUSTOM"]),
-  description: z.string().optional(),
+  description: z.string().max(500, "Description must be 500 characters or less").optional(),
 })
 
 type CreateListFormData = z.infer<typeof createListSchema>
@@ -44,12 +45,11 @@ interface CreateListFormProps {
 export function CreateListForm({ open, onOpenChange }: CreateListFormProps) {
   const router = useRouter()
   const createList = useCreateList()
-  const [error, setError] = useState<string | null>(null)
 
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
     reset,
     setValue,
     watch,
@@ -61,10 +61,16 @@ export function CreateListForm({ open, onOpenChange }: CreateListFormProps) {
   })
 
   const type = watch("type")
+  const isSubmitting = createList.isPending
 
-  async function onSubmit(data: CreateListFormData) {
-    setError(null)
+  const handleOpenChange = useCallback((newOpen: boolean) => {
+    if (!newOpen && !isSubmitting) {
+      reset()
+    }
+    onOpenChange(newOpen)
+  }, [isSubmitting, onOpenChange, reset])
 
+  const onSubmit = useCallback(async (data: CreateListFormData) => {
     try {
       const list = await createList.mutateAsync({
         title: data.title,
@@ -74,14 +80,19 @@ export function CreateListForm({ open, onOpenChange }: CreateListFormProps) {
 
       reset()
       onOpenChange(false)
+      toast.success("List created", {
+        description: `"${data.title}" has been created`,
+      })
       router.push(`/lists/${list.id}`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create list")
+    } catch (error) {
+      toast.error("Failed to create list", {
+        description: error instanceof Error ? error.message : "Please try again",
+      })
     }
-  }
+  }, [createList, onOpenChange, reset, router])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Create New List</DialogTitle>
@@ -93,14 +104,21 @@ export function CreateListForm({ open, onOpenChange }: CreateListFormProps) {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
+            <Label htmlFor="title">
+              Title <span className="text-destructive">*</span>
+            </Label>
             <Input
               id="title"
               placeholder="e.g., Weekly Groceries"
               {...register("title")}
+              aria-invalid={errors.title ? "true" : "false"}
+              aria-describedby={errors.title ? "title-error" : undefined}
+              disabled={isSubmitting}
             />
             {errors.title && (
-              <p className="text-sm text-destructive">{errors.title.message}</p>
+              <p id="title-error" className="text-sm text-destructive" role="alert">
+                {errors.title.message}
+              </p>
             )}
           </div>
 
@@ -109,8 +127,9 @@ export function CreateListForm({ open, onOpenChange }: CreateListFormProps) {
             <Select
               value={type}
               onValueChange={(value) => setValue("type", value as ListType)}
+              disabled={isSubmitting}
             >
-              <SelectTrigger>
+              <SelectTrigger id="type">
                 <SelectValue placeholder="Select list type" />
               </SelectTrigger>
               <SelectContent>
@@ -128,23 +147,27 @@ export function CreateListForm({ open, onOpenChange }: CreateListFormProps) {
               id="description"
               placeholder="Add details about this list..."
               {...register("description")}
+              disabled={isSubmitting}
             />
           </div>
-
-          {error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )}
 
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || createList.isPending}>
-              {createList.isPending ? "Creating..." : "Create List"}
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <span className="mr-2">Creating...</span>
+                </>
+              ) : (
+                "Create List"
+              )}
             </Button>
           </DialogFooter>
         </form>

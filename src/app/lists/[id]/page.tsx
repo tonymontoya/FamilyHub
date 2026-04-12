@@ -1,12 +1,23 @@
 "use client"
 
-import { use } from "react"
+import { use, useCallback, useMemo, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Edit, Trash2 } from "lucide-react"
+import { ArrowLeft, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { ListTypeBadge } from "@/components/lists/list-type-badge"
 import { ItemRow } from "@/components/lists/item-row"
 import { AddItemForm } from "@/components/lists/add-item-form"
@@ -22,11 +33,52 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
   const router = useRouter()
   const { data: list, isLoading, isError } = useList(id)
   const deleteList = useDeleteList()
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+
+  // Memoize progress calculation
+  const { completedCount, progress } = useMemo(() => {
+    if (!list) return { completedCount: 0, progress: 0 }
+    const completed = list.items.filter((item) => item.completed).length
+    const prog = list.items.length > 0
+      ? Math.round((completed / list.items.length) * 100)
+      : 0
+    return { completedCount: completed, progress: prog }
+  }, [list])
+
+  const handleDeleteClick = useCallback(() => {
+    setShowDeleteDialog(true)
+  }, [])
+
+  const handleConfirmDelete = useCallback(() => {
+    setShowDeleteDialog(false)
+    
+    deleteList.mutate(id, {
+      onSuccess: () => {
+        toast.success("List deleted", {
+          description: `"${list?.title}" has been deleted`,
+        })
+        router.push("/lists")
+      },
+      onError: (error) => {
+        toast.error("Failed to delete list", {
+          description: error instanceof Error ? error.message : "Please try again",
+        })
+      },
+    })
+  }, [deleteList, id, list?.title, router])
+
+  const handleCancelDelete = useCallback(() => {
+    setShowDeleteDialog(false)
+  }, [])
 
   if (isError) {
     return (
       <div className="container mx-auto py-8">
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-8 text-center">
+        <div 
+          className="rounded-lg border border-destructive/50 bg-destructive/10 p-8 text-center"
+          role="alert"
+          aria-live="assertive"
+        >
           <h2 className="text-lg font-medium text-destructive">
             List not found
           </h2>
@@ -45,28 +97,13 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
     return <ListDetailSkeleton />
   }
 
-  const handleDelete = () => {
-    if (confirm("Are you sure you want to delete this list?")) {
-      deleteList.mutate(id, {
-        onSuccess: () => {
-          router.push("/lists")
-        },
-      })
-    }
-  }
-
-  const completedCount = list.items.filter((item) => item.completed).length
-  const progress = list.items.length > 0
-    ? Math.round((completedCount / list.items.length) * 100)
-    : 0
-
   return (
     <div className="container mx-auto py-8">
       {/* Header */}
       <div className="mb-6">
         <Link href="/lists" className="mb-4 inline-flex items-center text-sm">
           <Button variant="ghost" size="sm">
-            <ArrowLeft className="mr-2 h-4 w-4" />
+            <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
             Back to Lists
           </Button>
         </Link>
@@ -85,16 +122,14 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" size="icon">
-              <Edit className="h-4 w-4" />
-            </Button>
             <Button
               variant="outline"
               size="icon"
-              onClick={handleDelete}
+              onClick={handleDeleteClick}
               disabled={deleteList.isPending}
+              aria-label={`Delete list "${list.title}"`}
             >
-              <Trash2 className="h-4 w-4 text-destructive" />
+              <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
             </Button>
           </div>
         </div>
@@ -103,12 +138,21 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
         {list.items.length > 0 && (
           <div className="mt-4">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">
+              <span className="text-muted-foreground" aria-live="polite">
                 {completedCount} of {list.items.length} completed
               </span>
-              <span className="font-medium">{progress}%</span>
+              <span className="font-medium" aria-label={`${progress}% complete`}>
+                {progress}%
+              </span>
             </div>
-            <div className="mt-2 h-2 rounded-full bg-muted">
+            <div 
+              className="mt-2 h-2 rounded-full bg-muted"
+              role="progressbar"
+              aria-valuenow={progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="List completion progress"
+            >
               <div
                 className="h-full rounded-full bg-primary transition-all"
                 style={{ width: `${progress}%` }}
@@ -127,19 +171,44 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
 
       {/* Items List */}
       {list.items.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center">
+        <div 
+          className="rounded-lg border border-dashed p-8 text-center"
+          role="status"
+          aria-live="polite"
+        >
           <p className="text-muted-foreground">No items yet</p>
           <p className="text-sm text-muted-foreground">
             Add your first item above
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2" role="list" aria-label="List items">
           {list.items.map((item) => (
             <ItemRow key={item.id} item={item} listId={id} />
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete list?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;{list.title}&quot;? This will delete all {list.items.length} items in the list. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelDelete}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete List
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

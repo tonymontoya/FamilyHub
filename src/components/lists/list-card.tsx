@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import Link from "next/link"
 import {
   Card,
@@ -17,8 +18,15 @@ interface ListCardProps {
 }
 
 export function ListCard({ list }: ListCardProps) {
+  // Memoize date formatting to prevent recalculation on every render
+  const relativeDate = useMemo(() => formatRelativeDate(list.updatedAt), [list.updatedAt])
+
   return (
-    <Link href={`/lists/${list.id}`} className="block">
+    <Link 
+      href={`/lists/${list.id}`} 
+      className="block"
+      aria-label={`Open ${list.title} list with ${list.itemCount} items`}
+    >
       <Card className="h-full transition-colors hover:bg-muted/50">
         <CardHeader>
           <div className="flex items-start justify-between gap-2">
@@ -34,12 +42,12 @@ export function ListCard({ list }: ListCardProps) {
         <CardContent>
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span>{list.itemCount} items</span>
-            <span>•</span>
+            <span aria-hidden="true">•</span>
             <span>by {list.createdBy.displayName}</span>
           </div>
         </CardContent>
         <CardFooter className="text-xs text-muted-foreground">
-          Updated {formatRelativeDate(list.updatedAt)}
+          Updated {relativeDate}
         </CardFooter>
       </Card>
     </Link>
