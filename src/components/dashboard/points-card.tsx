@@ -3,13 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Trophy, Target, TrendingUp } from "lucide-react"
-
-interface ChildPoints {
-  id: string
-  name: string
-  total: number
-  thisWeek: number
-}
+import { ChildPoints } from "@/hooks/use-dashboard"
 
 interface PointsCardProps {
   userRole: "PARENT" | "CHILD"

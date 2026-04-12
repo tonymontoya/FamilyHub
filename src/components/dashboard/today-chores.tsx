@@ -6,20 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { CompleteChoreDialog } from "@/components/chores/complete-chore-dialog"
-
-interface Chore {
-  id: string
-  title: string
-  points: number
-  assigneeId: string | null
-  assigneeName: string | null
-  status: "TODO" | "PENDING" | "APPROVED" | "DECLINED"
-  completedBy: string | null
-  completedByName: string | null
-}
+import { DashboardChore } from "@/hooks/use-dashboard"
 
 interface TodayChoresProps {
-  chores: Chore[]
+  chores: DashboardChore[]
   userRole: "PARENT" | "CHILD"
   userId: string
   onComplete: () => void
@@ -31,10 +21,10 @@ export function TodayChores({
   userId,
   onComplete,
 }: TodayChoresProps) {
-  const [selectedChore, setSelectedChore] = useState<Chore | null>(null)
+  const [selectedChore, setSelectedChore] = useState<DashboardChore | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  const handleCompleteClick = (chore: Chore) => {
+  const handleCompleteClick = (chore: DashboardChore) => {
     setSelectedChore(chore)
     setIsDialogOpen(true)
   }
@@ -44,7 +34,7 @@ export function TodayChores({
   const approvedChores = chores.filter((c) => c.status === "APPROVED")
   const declinedChores = chores.filter((c) => c.status === "DECLINED")
 
-  const getStatusBadge = (status: Chore["status"]) => {
+  const getStatusBadge = (status: DashboardChore["status"]) => {
     switch (status) {
       case "PENDING":
         return (

@@ -1,6 +1,6 @@
 "use client"
 
-import { useDashboard } from "@/hooks/use-dashboard"
+import { useDashboard, DashboardData } from "@/hooks/use-dashboard"
 import { WelcomeHeader } from "@/components/dashboard/welcome-header"
 import { TodayChores } from "@/components/dashboard/today-chores"
 import { PointsCard } from "@/components/dashboard/points-card"
@@ -10,10 +10,38 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, AlertCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { ErrorBoundary, FallbackProps } from "react-error-boundary"
 
-export default function DashboardPage() {
+// Error Fallback Component
+function DashboardErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
+  return (
+    <main className="flex-1 p-4 md:p-8">
+      <div className="mx-auto max-w-6xl">
+        <Card className="border-destructive">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Dashboard Error</h2>
+            <p className="text-muted-foreground text-center mb-4 max-w-md">
+              Something unexpected happened in the dashboard.
+              <br />
+              <span className="text-sm text-destructive">{error instanceof Error ? error.message : "Unknown error"}</span>
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                Reload Page
+              </Button>
+              <Button onClick={resetErrorBoundary}>Try Again</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </main>
+  )
+}
+
+function DashboardContent() {
   const router = useRouter()
-  const { data, isLoading, isError, error, isStale, refresh } = useDashboard({
+  const { data, isLoading, isError, error, isStale, isRefreshing, refresh } = useDashboard({
     pollInterval: 30000, // 30 seconds
   })
 
@@ -59,8 +87,8 @@ export default function DashboardPage() {
               <p className="text-muted-foreground text-center mb-4">
                 {error?.message || "Something went wrong"}
               </p>
-              <Button onClick={refresh}>
-                <RefreshCw className="mr-2 h-4 w-4" />
+              <Button onClick={refresh} disabled={isRefreshing}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
                 Try Again
               </Button>
             </CardContent>
@@ -79,9 +107,11 @@ export default function DashboardPage() {
       <div className="mx-auto max-w-6xl space-y-6">
         {/* Welcome Header */}
         <WelcomeHeader
-          data={data}
+          displayName={data.user.displayName}
+          role={data.user.role}
           isStale={isStale}
           isError={isError}
+          isRefreshing={isRefreshing}
           onRefresh={refresh}
         />
 
@@ -213,5 +243,13 @@ export default function DashboardPage() {
         </div>
       </div>
     </main>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <ErrorBoundary FallbackComponent={DashboardErrorFallback}>
+      <DashboardContent />
+    </ErrorBoundary>
   )
 }

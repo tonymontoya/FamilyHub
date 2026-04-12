@@ -1,24 +1,25 @@
 "use client"
 
-import { useDashboard } from "@/hooks/use-dashboard"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, AlertCircle } from "lucide-react"
+import { RefreshCw, AlertCircle, Loader2 } from "lucide-react"
 
 interface WelcomeHeaderProps {
-  data: ReturnType<typeof useDashboard>["data"]
+  displayName: string
+  role: "PARENT" | "CHILD"
   isStale: boolean
   isError: boolean
+  isRefreshing: boolean
   onRefresh: () => void
 }
 
 export function WelcomeHeader({
-  data,
+  displayName,
+  role,
   isStale,
   isError,
+  isRefreshing,
   onRefresh,
 }: WelcomeHeaderProps) {
-  if (!data) return null
-
   const greeting = () => {
     const hour = new Date().getHours()
     if (hour < 12) return "Good morning"
@@ -30,10 +31,10 @@ export function WelcomeHeader({
     <div className="mb-6 flex items-start justify-between">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">
-          {greeting()}, {data.user.displayName}!
+          {greeting()}, {displayName}!
         </h1>
         <p className="text-muted-foreground">
-          {data.user.role === "PARENT"
+          {role === "PARENT"
             ? "Here's what's happening with your family today."
             : "Here are your chores for today."}
         </p>
@@ -48,8 +49,17 @@ export function WelcomeHeader({
         {isStale && !isError && (
           <div className="text-sm text-muted-foreground">Data may be stale</div>
         )}
-        <Button variant="outline" size="icon" onClick={onRefresh}>
-          <RefreshCw className="h-4 w-4" />
+        <Button 
+          variant="outline" 
+          size="icon" 
+          onClick={onRefresh}
+          disabled={isRefreshing}
+        >
+          {isRefreshing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
         </Button>
       </div>
     </div>

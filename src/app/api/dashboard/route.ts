@@ -16,6 +16,9 @@ const RATE_LIMIT_CONFIG = { max: 60, windowMs: 60 * 1000 }
  *
  * Returns unified dashboard data for the authenticated user.
  * Different data is returned based on role (parent vs child).
+ * 
+ * PERFORMANCE NOTE: Uses single queries with GROUP BY to avoid N+1 problem.
+ * A family with 5 children generates ~5-6 queries total, not 15+.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -64,59 +67,126 @@ export async function GET(request: NextRequest) {
     const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999))
 
     // Get start of week (Sunday) for "this week" calculations
-    const dayOfWeek = new Date(
-      Date.UTC(year, month - 1, day)
-    ).getUTCDay()
+    const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay()
     const startOfWeek = new Date(
       Date.UTC(year, month - 1, day - dayOfWeek, 0, 0, 0)
     )
 
-    // Fetch all active chores for the family
-    const chores = await prisma.chore.findMany({
-      where: {
-        familyId: member.familyId,
-        status: "ACTIVE",
-        deletedAt: null,
-      },
-      include: {
-        assignee: {
-          select: {
-            id: true,
-            displayName: true,
+    // Fetch all data in parallel to minimize latency
+    const [
+      chores,
+      todayCompletions,
+      pendingApprovals,
+    ] = await Promise.all([
+      // 1. Fetch all active chores for the family
+      prisma.chore.findMany({
+        where: {
+          familyId: member.familyId,
+          status: "ACTIVE",
+          deletedAt: null,
+        },
+        include: {
+          assignee: {
+            select: {
+              id: true,
+              displayName: true,
+            },
           },
         },
+      }),
+
+      // 2. Get today's completions for the family
+      prisma.completion.findMany({
+        where: {
+          completedAt: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
+          chore: {
+            familyId: member.familyId,
+          },
+        },
+        include: {
+          chore: {
+            select: {
+              id: true,
+              title: true,
+              points: true,
+            },
+          },
+          member: {
+            select: {
+              id: true,
+              displayName: true,
+            },
+          },
+        },
+      }),
+
+      // 3. Get pending approvals (parent only, but we fetch anyway to keep parallel)
+      prisma.completion.findMany({
+        where: {
+          chore: {
+            familyId: member.familyId,
+          },
+          status: "PENDING",
+        },
+        orderBy: { completedAt: "desc" },
+        include: {
+          chore: {
+            select: {
+              id: true,
+              title: true,
+              points: true,
+            },
+          },
+          member: {
+            select: {
+              id: true,
+              displayName: true,
+            },
+          },
+        },
+      }),
+    ])
+
+    // 4. Fetch points data - SINGLE QUERY with GROUP BY (avoids N+1)
+    const pointsTransactions = await prisma.pointTransaction.groupBy({
+      by: ["memberId"],
+      where: {
+        member: {
+          familyId: member.familyId,
+          role: member.role === "PARENT" ? undefined : "CHILD",
+        },
+        type: "EARNED",
       },
+      _sum: { amount: true },
     })
 
-    // Get today's completions for the family
-    const todayCompletions = await prisma.completion.findMany({
+    // 5. Fetch this week's points - SINGLE QUERY
+    const weeklyPoints = await prisma.pointTransaction.groupBy({
+      by: ["memberId"],
       where: {
-        completedAt: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
-        chore: {
+        member: {
           familyId: member.familyId,
         },
-      },
-      include: {
-        chore: {
-          select: {
-            id: true,
-            title: true,
-            points: true,
-          },
-        },
-        member: {
-          select: {
-            id: true,
-            displayName: true,
-          },
+        type: "EARNED",
+        createdAt: {
+          gte: startOfWeek,
         },
       },
+      _sum: { amount: true },
     })
 
-    // Create a map of completed chore IDs with status
+    // Build lookup maps for O(1) access
+    const totalPointsMap = new Map(
+      pointsTransactions.map((p) => [p.memberId, p._sum.amount || 0])
+    )
+    const weeklyPointsMap = new Map(
+      weeklyPoints.map((p) => [p.memberId, p._sum.amount || 0])
+    )
+
+    // Create completion lookup map
     const completionMap = new Map(
       todayCompletions.map((c) => [
         c.choreId,
@@ -175,14 +245,15 @@ export async function GET(request: NextRequest) {
       },
       today: {
         date: startOfDay.toISOString().split("T")[0],
-        chores: member.role === "CHILD" 
-          ? todayChores.filter(
-              (c) =>
-                c.assigneeId === member.id ||
-                (c.assigneeId === null && c.completedBy === member.id) ||
-                (!c.assigneeId && c.status === "TODO")
-            )
-          : todayChores,
+        chores:
+          member.role === "CHILD"
+            ? todayChores.filter(
+                (c) =>
+                  c.assigneeId === member.id ||
+                  (c.assigneeId === null && c.completedBy === member.id) ||
+                  (!c.assigneeId && c.status === "TODO")
+              )
+            : todayChores,
       },
       meta: {
         lastUpdated: new Date().toISOString(),
@@ -191,33 +262,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (member.role === "PARENT") {
-      // Get pending approvals
-      const pendingApprovals = await prisma.completion.findMany({
-        where: {
-          chore: {
-            familyId: member.familyId,
-          },
-          status: "PENDING",
-        },
-        orderBy: { completedAt: "desc" },
-        include: {
-          chore: {
-            select: {
-              id: true,
-              title: true,
-              points: true,
-            },
-          },
-          member: {
-            select: {
-              id: true,
-              displayName: true,
-            },
-          },
-        },
-      })
-
-      // Get points data for all children
+      // Get children list
       const children = await prisma.member.findMany({
         where: {
           familyId: member.familyId,
@@ -230,40 +275,15 @@ export async function GET(request: NextRequest) {
         },
       })
 
-      const pointsData = await Promise.all(
-        children.map(async (child) => {
-          // Total points (all time)
-          const totalResult = await prisma.pointTransaction.aggregate({
-            where: {
-              memberId: child.id,
-              type: "EARNED",
-            },
-            _sum: { amount: true },
-          })
-
-          // This week's points
-          const weekResult = await prisma.pointTransaction.aggregate({
-            where: {
-              memberId: child.id,
-              type: "EARNED",
-              createdAt: {
-                gte: startOfWeek,
-              },
-            },
-            _sum: { amount: true },
-          })
-
-          return {
-            id: child.id,
-            name: child.displayName,
-            total: totalResult._sum.amount || 0,
-            thisWeek: weekResult._sum.amount || 0,
-          }
-        })
-      )
-
-      // Sort by total points (descending)
-      pointsData.sort((a, b) => b.total - a.total)
+      // Build points data from maps (no additional queries!)
+      const pointsData = children
+        .map((child) => ({
+          id: child.id,
+          name: child.displayName,
+          total: totalPointsMap.get(child.id) || 0,
+          thisWeek: weeklyPointsMap.get(child.id) || 0,
+        }))
+        .sort((a, b) => b.total - a.total)
 
       return NextResponse.json({
         ...baseResponse,
@@ -286,31 +306,12 @@ export async function GET(request: NextRequest) {
         },
       })
     } else {
-      // Child view - personal points only
-      const totalResult = await prisma.pointTransaction.aggregate({
-        where: {
-          memberId: member.id,
-          type: "EARNED",
-        },
-        _sum: { amount: true },
-      })
-
-      const weekResult = await prisma.pointTransaction.aggregate({
-        where: {
-          memberId: member.id,
-          type: "EARNED",
-          createdAt: {
-            gte: startOfWeek,
-          },
-        },
-        _sum: { amount: true },
-      })
-
+      // Child view - use maps for O(1) lookup
       return NextResponse.json({
         ...baseResponse,
         points: {
-          total: totalResult._sum.amount || 0,
-          thisWeek: weekResult._sum.amount || 0,
+          total: totalPointsMap.get(member.id) || 0,
+          thisWeek: weeklyPointsMap.get(member.id) || 0,
           weeklyGoal: 100, // MVP default goal
         },
       })

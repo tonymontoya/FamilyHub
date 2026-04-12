@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Check, X, Star, Loader2, User, Clock } from "lucide-react"
 import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,18 +17,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-
-interface PendingApproval {
-  id: string
-  choreId: string
-  choreTitle: string
-  childId: string
-  childName: string
-  completedAt: string
-  photoUrl: string | null
-  notes: string | null
-  points: number
-}
+import { PendingApproval } from "@/hooks/use-dashboard"
 
 interface PendingApprovalsProps {
   approvals: PendingApproval[]
@@ -37,7 +25,6 @@ interface PendingApprovalsProps {
 }
 
 export function PendingApprovals({ approvals, onUpdate }: PendingApprovalsProps) {
-  const router = useRouter()
   const [selectedApproval, setSelectedApproval] = useState<PendingApproval | null>(null)
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false)
   const [isDeclineDialogOpen, setIsDeclineDialogOpen] = useState(false)
