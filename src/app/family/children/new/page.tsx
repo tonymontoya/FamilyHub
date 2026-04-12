@@ -20,7 +20,7 @@ const createChildSchema = z.object({
     .string()
     .min(3, "Username must be at least 3 characters")
     .max(20, "Username must be less than 20 characters")
-    .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
+    .regex(/^[a-z0-9_]+$/, "Username can only contain lowercase letters, numbers, and underscores"),
   displayName: z
     .string()
     .min(2, "Display name must be at least 2 characters")
@@ -33,12 +33,26 @@ const createChildSchema = z.object({
 
 type CreateChildFormData = z.infer<typeof createChildSchema>
 
-// Generate a secure random password
+// Generate a cryptographically secure random password
 function generatePassword(): string {
   const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+  const charsetLength = charset.length
+  
+  // Use crypto.getRandomValues for cryptographically secure randomness
+  const randomValues = new Uint32Array(16)
+  if (typeof window !== "undefined" && window.crypto) {
+    window.crypto.getRandomValues(randomValues)
+  } else {
+    // Fallback for server-side (shouldn't happen in this component)
+    // In practice, this code runs client-side
+    for (let i = 0; i < 16; i++) {
+      randomValues[i] = Math.floor(Math.random() * 0x100000000)
+    }
+  }
+  
   let password = ""
   for (let i = 0; i < 16; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length))
+    password += charset.charAt(randomValues[i] % charsetLength)
   }
   return password
 }

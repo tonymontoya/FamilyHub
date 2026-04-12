@@ -5,6 +5,29 @@ import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 
+// Rate limiting: Max 5 child accounts per minute per parent
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
+const RATE_LIMIT_MAX = 5
+const RATE_LIMIT_WINDOW_MS = 60 * 1000 // 1 minute
+
+function checkRateLimit(parentId: string): boolean {
+  const now = Date.now()
+  const record = rateLimitMap.get(parentId)
+  
+  if (!record || now > record.resetTime) {
+    // New window or expired
+    rateLimitMap.set(parentId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS })
+    return true
+  }
+  
+  if (record.count >= RATE_LIMIT_MAX) {
+    return false
+  }
+  
+  record.count++
+  return true
+}
+
 // Input validation schema
 const createChildSchema = z.object({
   username: z
@@ -55,6 +78,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Check rate limit
+    if (!checkRateLimit(parentMember.id)) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Please try again later." },
+        { status: 429 }
+      )
+    }
+
     // Parse and validate request body
     let body: unknown
     try {
@@ -76,6 +107,13 @@ export async function POST(request: NextRequest) {
 
     const { username, displayName, password } = validationResult.data
     const normalizedUsername = username.toLowerCase()
+    
+    // Sanitize display name to prevent XSS
+    // Remove HTML tags and trim whitespace
+    const sanitizedDisplayName = displayName
+      .replace(/<[^>]*>/g, "") // Remove HTML tags
+      .trim()
+      .slice(0, 50) // Ensure max length
 
     // Check if username is already taken in Better-Auth
     const existingUser = await prisma.user.findUnique({
@@ -107,16 +145,16 @@ export async function POST(request: NextRequest) {
     const syntheticEmail = `child-${parentMember.familyId}-${normalizedUsername}@familyhub.local`
 
     // Create child user in Better-Auth via internal API
-    // We use the auth handler directly to create the user
+    const baseURL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
     const createUserResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/sign-up/email`,
+      `${baseURL}/api/auth/sign-up/email`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: syntheticEmail,
           password,
-          name: displayName,
+          name: sanitizedDisplayName,
           username: normalizedUsername,
         }),
       }
@@ -144,14 +182,48 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Member record for the child
-    const childMember = await prisma.member.create({
-      data: {
-        familyId: parentMember.familyId,
-        role: "CHILD",
-        username: normalizedUsername,
-        displayName,
-      },
-    })
+    // If this fails, we need to roll back the Better-Auth user
+    let childMember
+    try {
+      childMember = await prisma.member.create({
+        data: {
+          familyId: parentMember.familyId,
+          role: "CHILD",
+          username: normalizedUsername,
+          displayName: sanitizedDisplayName,
+        },
+      })
+    } catch (memberError) {
+      // Rollback: Delete the Better-Auth user we just created
+      console.error("Member creation failed, rolling back auth user:", memberError)
+      
+      try {
+        await prisma.user.delete({
+          where: { id: authUser.id },
+        })
+        // Also delete associated account
+        await prisma.account.deleteMany({
+          where: { userId: authUser.id },
+        })
+      } catch (rollbackError) {
+        console.error("CRITICAL: Rollback failed, orphaned auth user:", rollbackError)
+      }
+
+      if (
+        memberError instanceof Prisma.PrismaClientKnownRequestError &&
+        memberError.code === "P2002"
+      ) {
+        return NextResponse.json(
+          { error: "Username already exists" },
+          { status: 409 }
+        )
+      }
+
+      return NextResponse.json(
+        { error: "Failed to create member record" },
+        { status: 500 }
+      )
+    }
 
     // Return success with credentials (parent needs to save these)
     return NextResponse.json({

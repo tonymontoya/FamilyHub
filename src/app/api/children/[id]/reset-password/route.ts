@@ -3,12 +3,17 @@ import { headers } from "next/headers"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 
-// Generate a secure random password
+// Generate a cryptographically secure random password
 function generatePassword(): string {
   const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+  const charsetLength = charset.length
+  
+  // Use Node.js crypto for cryptographically secure randomness
+  const { randomInt } = require("crypto")
+  
   let password = ""
   for (let i = 0; i < 16; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length))
+    password += charset.charAt(randomInt(0, charsetLength))
   }
   return password
 }

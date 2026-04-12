@@ -68,15 +68,27 @@ export async function DELETE(
       )
     }
 
+    // Get the auth user to delete their sessions
+    const authUser = await prisma.user.findUnique({
+      where: { username: childMember.username },
+    })
+
+    if (authUser) {
+      // Delete all active sessions for this user
+      await prisma.session.deleteMany({
+        where: { userId: authUser.id },
+      })
+    }
+
     // Soft delete the member record
     await prisma.member.update({
       where: { id: childId },
       data: { deletedAt: new Date() },
     })
 
-    // Note: We're not deleting the Better-Auth user account immediately
-    // This allows the child to still log in during the 30-day retention period
-    // A background job should permanently delete data after 30 days
+    // Note: We're soft-deleting, not hard-deleting.
+    // The Better-Auth user record remains but sessions are invalidated.
+    // A background job should permanently delete data after 30 days.
 
     return NextResponse.json({
       success: true,
