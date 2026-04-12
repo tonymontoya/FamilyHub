@@ -87,6 +87,8 @@ model Completion {
   member   Member  @relation(fields: [memberId], references: [id])
   approver Member? @relation("CompletionApprover", fields: [approvedBy], references: [id])
 
+  // Unique constraint for idempotency: one completion per chore per member per day
+  @@unique([choreId, memberId, scheduledFor], name: "unique_completion_per_day")
   @@index([choreId, memberId, completedAt])
   @@index([memberId, status])
   @@index([choreId, status])

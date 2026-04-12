@@ -6,9 +6,13 @@ import {
   authenticate,
   requireAuth,
   requireRole,
+  checkRateLimit,
   isValidUUID,
   Errors,
 } from "@/lib/api-utils"
+
+// Rate limiting: Max 30 approvals per hour per parent
+const RATE_LIMIT_CONFIG = { max: 30, windowMs: 60 * 60 * 1000 }
 
 // Input validation schema
 const approveSchema = z.object({
@@ -44,6 +48,11 @@ export async function POST(
     if (roleError) return roleError
 
     const parentMember = authContext!.member
+    
+    // Check rate limit
+    if (!checkRateLimit(`approval:${parentMember.id}`, RATE_LIMIT_CONFIG)) {
+      return Errors.tooManyRequests()
+    }
 
     // Get the completion with related data
     const completion = await prisma.completion.findUnique({
@@ -89,9 +98,9 @@ export async function POST(
     // Determine points to award
     const pointsToAward = customPoints ?? completion.chore.points
 
-    // Sanitize notes
+    // Sanitize notes - prevent nested [Parent Notes:] brackets
     const sanitizedNotes = approvalNotes
-      ? approvalNotes.replace(/<[^>]*>/g, "").trim().slice(0, 500)
+      ? approvalNotes.replace(/<[^>]*>/g, "").replace(/\[Parent Notes:[^\]]*\]/g, "").trim().slice(0, 500)
       : null
 
     // Execute approval in a transaction

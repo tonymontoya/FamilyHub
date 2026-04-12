@@ -221,7 +221,7 @@ export async function saveFile(
   return {
     filename,
     filepath,
-    publicUrl: `/uploads/completions/${filename}`,
+    publicUrl: `/api/uploads/completions/${filename}`,
     size: stats.size,
     mimetype,
   }
@@ -250,25 +250,4 @@ export function formatBytes(bytes: number): string {
   const sizes = ["Bytes", "KB", "MB", "GB"]
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
-}
-
-/**
- * Parse multipart form data (wrapper around formidable)
- * Returns fields and files
- */
-export async function parseFormData(
-  request: Request
-): Promise<{
-  fields: Record<string, string | string[]>
-  files: Record<string, {
-    filepath: string
-    originalFilename: string | null
-    mimetype: string
-    size: number
-  }>
-}> {
-  // For Next.js App Router, we need to handle this differently
-  // This is a placeholder for the actual implementation
-  // We'll use formidable in the API route directly
-  throw new Error("Use formidable directly in API route")
 }

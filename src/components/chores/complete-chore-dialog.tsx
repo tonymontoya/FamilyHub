@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { MAX_FILE_SIZE, ALLOWED_MIME_TYPES } from "@/lib/file-upload"
 
 interface CompleteChoreDialogProps {
   chore: {
@@ -27,8 +28,7 @@ interface CompleteChoreDialogProps {
   onComplete: () => void
 }
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
-const ALLOWED_TYPES = ["image/jpeg", "image/png"]
+// Client-side validation uses same constants as server
 
 export function CompleteChoreDialog({
   chore,
@@ -55,7 +55,7 @@ export function CompleteChoreDialog({
       return
     }
 
-    if (!ALLOWED_TYPES.includes(file.type)) {
+    if (!ALLOWED_MIME_TYPES.includes(file.type as typeof ALLOWED_MIME_TYPES[number])) {
       setPhotoError("Only JPEG and PNG images are allowed")
       return
     }

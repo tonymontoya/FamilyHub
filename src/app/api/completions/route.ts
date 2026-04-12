@@ -92,6 +92,7 @@ async function parseFormData(
  */
 export async function POST(request: NextRequest) {
   let uploadedFilePath: string | null = null
+  let tempFilePath: string | null = null
 
   try {
     // Authenticate
@@ -115,9 +116,7 @@ export async function POST(request: NextRequest) {
       files = parsed.files
     } catch (parseError) {
       console.error("Form parsing error:", parseError)
-      return Errors.badRequest(
-        "Invalid form data. Ensure file is under 5MB and is a JPEG/PNG image."
-      )
+      return Errors.badRequest("Invalid form data")
     }
 
     // Extract and validate fields
@@ -144,12 +143,12 @@ export async function POST(request: NextRequest) {
     // Validate completedAt date
     const completedAt = completedAtStr ? new Date(completedAtStr) : new Date()
     if (isNaN(completedAt.getTime())) {
-      return Errors.badRequest("Invalid completedAt date")
+      return Errors.badRequest("Invalid date")
     }
 
     // Prevent future dates
     if (completedAt > new Date()) {
-      return Errors.badRequest("Completion date cannot be in the future")
+      return Errors.badRequest("Date cannot be in the future")
     }
 
     // Get the chore and verify it exists and belongs to family
@@ -173,11 +172,13 @@ export async function POST(request: NextRequest) {
 
     // Authorization check:
     // - PARENT can complete any chore in their family
-    // - CHILD can only complete chores assigned to them
+    // - CHILD can only complete chores assigned to them (or unassigned chores)
     if (member.role === "CHILD") {
       if (chore.assigneeId && chore.assigneeId !== member.id) {
         return Errors.forbidden("Not assigned to this chore")
       }
+      // Note: Unassigned chores (assigneeId is null) can be completed by any child
+      // This is intentional - allows "first come first served" for unassigned chores
     }
 
     // Handle file upload if present
@@ -185,6 +186,8 @@ export async function POST(request: NextRequest) {
     const file = files.photo?.[0]
 
     if (file) {
+      tempFilePath = file.filepath
+      
       // Validate file metadata
       const metadataValidation = validateFileMetadata({
         mimetype: file.mimetype || undefined,
@@ -193,11 +196,7 @@ export async function POST(request: NextRequest) {
       })
 
       if (!metadataValidation.valid) {
-        // Clean up temp file
-        try {
-          await fs.unlink(file.filepath)
-        } catch {}
-        return Errors.badRequest(metadataValidation.error || "Invalid file")
+        return Errors.badRequest("Invalid file")
       }
 
       // Save file with validation
@@ -211,9 +210,7 @@ export async function POST(request: NextRequest) {
         uploadedFilePath = uploadResult.filepath
       } catch (saveError) {
         console.error("File save error:", saveError)
-        return Errors.badRequest(
-          "Failed to save photo. Ensure it is a valid JPEG or PNG image."
-        )
+        return Errors.badRequest("Failed to save file")
       }
     }
 
@@ -229,58 +226,27 @@ export async function POST(request: NextRequest) {
       ? validatedNotes.replace(/<[^>]*>/g, "").trim().slice(0, 500)
       : null
 
-    // Idempotent completion: Check for existing completion
-    const existingCompletion = await prisma.completion.findFirst({
-      where: {
-        choreId: validatedChoreId,
-        memberId: member.id,
-        completedAt: {
-          gte: scheduledFor,
-          lt: new Date(scheduledFor.getTime() + 24 * 60 * 60 * 1000),
+    // Use upsert with unique constraint for atomic create/update
+    // This prevents race conditions
+    let completion: any
+    let isUpdate = false
+    
+    try {
+      completion = await prisma.completion.upsert({
+        where: {
+          unique_completion_per_day: {
+            choreId: validatedChoreId,
+            memberId: member.id,
+            scheduledFor: scheduledFor,
+          },
         },
-      },
-    })
-
-    let completion
-    const isUpdate = !!existingCompletion
-
-    if (existingCompletion) {
-      // Update existing completion (idempotent)
-      // If new photo uploaded, delete old one
-      if (photoUrl && existingCompletion.photoUrl) {
-        const oldPath = path.join(
-          process.cwd(),
-          "public",
-          existingCompletion.photoUrl
-        )
-        try {
-          await deleteFile(oldPath)
-        } catch (deleteError) {
-          console.error("Failed to delete old photo:", deleteError)
-        }
-      }
-
-      completion = await prisma.completion.update({
-        where: { id: existingCompletion.id },
-        data: {
-          photoUrl: photoUrl || existingCompletion.photoUrl,
-          notes: sanitizedNotes ?? existingCompletion.notes,
+        update: {
+          photoUrl: photoUrl || undefined,
+          notes: sanitizedNotes || undefined,
           completedAt: completedAt,
-          scheduledFor: scheduledFor,
+          status: "PENDING",
         },
-        include: {
-          chore: {
-            select: { title: true, points: true },
-          },
-          member: {
-            select: { displayName: true },
-          },
-        },
-      })
-    } else {
-      // Create new completion
-      completion = await prisma.completion.create({
-        data: {
+        create: {
           choreId: validatedChoreId,
           memberId: member.id,
           completedAt: completedAt,
@@ -298,6 +264,35 @@ export async function POST(request: NextRequest) {
           },
         },
       })
+      
+      // Check if this was an update by comparing createdAt and updatedAt
+      isUpdate = completion.updatedAt.getTime() !== completion.createdAt.getTime()
+      
+      // If we uploaded a new photo and it's an update, delete the old one
+      if (isUpdate && photoUrl) {
+        const oldCompletion = await prisma.completion.findUnique({
+          where: { id: completion.id },
+          select: { photoUrl: true }
+        })
+        
+        if (oldCompletion?.photoUrl && oldCompletion.photoUrl !== photoUrl) {
+          const oldPath = path.join(process.cwd(), "public", oldCompletion.photoUrl)
+          try {
+            await deleteFile(oldPath)
+          } catch (deleteError) {
+            console.error("Failed to delete old photo:", deleteError)
+            // Continue - old file will be cleaned up by periodic job
+          }
+        }
+      }
+    } catch (upsertError) {
+      // Clean up uploaded file on error
+      if (uploadedFilePath) {
+        try {
+          await deleteFile(uploadedFilePath)
+        } catch {}
+      }
+      throw upsertError
     }
 
     return NextResponse.json(
@@ -331,12 +326,17 @@ export async function POST(request: NextRequest) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return Errors.conflict(
-        "Completion already exists for this chore and date"
-      )
+      return Errors.conflict("Completion already exists")
     }
 
     return Errors.internal()
+  } finally {
+    // Clean up temp file if it wasn't moved
+    if (tempFilePath && !uploadedFilePath) {
+      try {
+        await fs.unlink(tempFilePath)
+      } catch {}
+    }
   }
 }
 
@@ -373,6 +373,21 @@ export async function GET(request: NextRequest) {
         if (!isValidUUID(childId)) {
           return Errors.badRequest("Invalid child ID")
         }
+        
+        // Verify the child belongs to the parent's family
+        const childMember = await prisma.member.findFirst({
+          where: {
+            id: childId,
+            familyId: member.familyId,
+            role: "CHILD",
+            deletedAt: null,
+          },
+        })
+        
+        if (!childMember) {
+          return Errors.forbidden("Invalid child ID")
+        }
+        
         where.memberId = childId
       }
     } else {

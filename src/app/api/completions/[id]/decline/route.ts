@@ -6,9 +6,13 @@ import {
   authenticate,
   requireAuth,
   requireRole,
+  checkRateLimit,
   isValidUUID,
   Errors,
 } from "@/lib/api-utils"
+
+// Rate limiting: Max 30 declines per hour per parent
+const RATE_LIMIT_CONFIG = { max: 30, windowMs: 60 * 60 * 1000 }
 
 // Input validation schema
 const declineSchema = z.object({
@@ -19,6 +23,7 @@ const declineSchema = z.object({
  * POST /api/completions/:id/decline
  *
  * Decline a completion. Child can retry later.
+ * Photos are retained for audit purposes.
  */
 export async function POST(
   request: NextRequest,
@@ -42,6 +47,11 @@ export async function POST(
     if (roleError) return roleError
 
     const parentMember = authContext!.member
+    
+    // Check rate limit
+    if (!checkRateLimit(`decline:${parentMember.id}`, RATE_LIMIT_CONFIG)) {
+      return Errors.tooManyRequests()
+    }
 
     // Get the completion with related data
     const completion = await prisma.completion.findUnique({
@@ -84,12 +94,13 @@ export async function POST(
 
     const { reason } = validationResult.data
 
-    // Sanitize reason
+    // Sanitize reason - prevent nested [Declined:] brackets
     const sanitizedReason = reason
-      ? reason.replace(/<[^>]*>/g, "").trim().slice(0, 500)
+      ? reason.replace(/<[^>]*>/g, "").replace(/\[Declined:[^\]]*\]/g, "").trim().slice(0, 500)
       : null
 
     // Update completion status
+    // Note: Photos are retained for audit purposes even when declined
     const updatedCompletion = await prisma.completion.update({
       where: { id: completionId },
       data: {
