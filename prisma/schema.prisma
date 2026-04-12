@@ -34,10 +34,10 @@ model Member {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  family       Family       @relation(fields: [familyId], references: [id])
-  completions  Completion[]
-  todos        Todo[]
-  points       PointTransaction[]
+  family         Family             @relation(fields: [familyId], references: [id])
+  completions    Completion[]
+  todos          Todo[]
+  points         PointTransaction[]
   assignedChores Chore[]
 
   @@index([familyId, role])
@@ -45,18 +45,18 @@ model Member {
 }
 
 model Chore {
-  id              String            @id @default(uuid())
-  familyId        String            @map("family_id")
-  title           String
-  description     String?
-  points          Int               @default(0)
-  recurrenceRule  String?           @map("recurrence_rule")
-  assigneeId      String?           @map("assignee_id")
-  status          ChoreStatus       @default(ACTIVE)
-  createdBy       String            @map("created_by")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
-  deletedAt       DateTime?         @map("deleted_at")
+  id             String      @id @default(uuid())
+  familyId       String      @map("family_id")
+  title          String
+  description    String?
+  points         Int         @default(0)
+  recurrenceRule String?     @map("recurrence_rule")
+  assigneeId     String?     @map("assignee_id")
+  status         ChoreStatus @default(ACTIVE)
+  createdBy      String      @map("created_by")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  deletedAt      DateTime?   @map("deleted_at")
 
   family      Family       @relation(fields: [familyId], references: [id])
   assignee    Member?      @relation(fields: [assigneeId], references: [id])
@@ -68,17 +68,17 @@ model Chore {
 }
 
 model Completion {
-  id            String          @id @default(uuid())
-  choreId       String          @map("chore_id")
-  memberId      String          @map("member_id")
-  completedAt   DateTime        @default(now()) @map("completed_at")
-  photoUrl      String?         @map("photo_url")
-  approvedBy    String?         @map("approved_by")
-  approvedAt    DateTime?       @map("approved_at")
-  pointsAwarded Int?            @map("points_awarded")
+  id            String           @id @default(uuid())
+  choreId       String           @map("chore_id")
+  memberId      String           @map("member_id")
+  completedAt   DateTime         @default(now()) @map("completed_at")
+  photoUrl      String?          @map("photo_url")
+  approvedBy    String?          @map("approved_by")
+  approvedAt    DateTime?        @map("approved_at")
+  pointsAwarded Int?             @map("points_awarded")
   status        CompletionStatus @default(PENDING)
   notes         String?
-  createdAt     DateTime        @default(now()) @map("created_at")
+  createdAt     DateTime         @default(now()) @map("created_at")
 
   chore  Chore  @relation(fields: [choreId], references: [id])
   member Member @relation(fields: [memberId], references: [id])
@@ -126,6 +126,7 @@ model PointTransaction {
 }
 
 // Enums
+
 enum Role {
   PARENT
   CHILD
@@ -150,4 +151,67 @@ enum TodoStatus {
 enum PointType {
   EARNED
   REDEEMED
+}
+
+model User {
+  id            String    @id
+  name          String
+  email         String
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
 }
