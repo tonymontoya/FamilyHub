@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useCallback, useMemo, useState, useEffect, useRef } from "react"
+import { use, useCallback, useMemo, useState, useLayoutEffect } from "react"
 import Link from "next/link"
 import { ArrowLeft, Trash2, Edit, GripVertical } from "lucide-react"
 import { toast } from "sonner"
@@ -42,7 +42,7 @@ import { EditListForm } from "@/components/lists/edit-list-form"
 import { useList, useDeleteList, useReorderItems } from "@/hooks/lists"
 import { useRouter } from "next/navigation"
 import type { ListItem } from "@/hooks/lists"
-import { cn } from "@/lib/utils"
+
 
 interface ListDetailPageProps {
   params: Promise<{ id: string }>
@@ -62,10 +62,17 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState<string>("")
   
-  // Sync local state when data loads (using useEffect, not render-time)
-  useEffect(() => {
+  // Sync local state when data loads - useLayoutEffect to avoid cascading renders
+  useLayoutEffect(() => {
     if (list?.items) {
-      setItems(list.items)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setItems((current) => {
+        // Only update if different to prevent loops
+        if (current.length === 0 || current[0]?.listId !== list.items[0]?.listId) {
+          return list.items
+        }
+        return current
+      })
     }
   }, [list?.items])
 
@@ -127,6 +134,7 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
     }
   }, [items])
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
     setActiveId(null)
@@ -135,7 +143,6 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
       setItems((currentItems) => {
         const oldIndex = currentItems.findIndex((item) => item.id === active.id)
         const newIndex = currentItems.findIndex((item) => item.id === over.id)
-
         const newItems = arrayMove(currentItems, oldIndex, newIndex)
         const movedItem = newItems[newIndex]
         

@@ -130,16 +130,12 @@ export type ReorderInput = z.infer<typeof reorderSchema>
 export function validateOrThrow<T>(
   schema: z.ZodSchema<T>,
   data: unknown,
-  errorCode: string = "VALIDATION_ERROR"
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _errorCode: string = "VALIDATION_ERROR"
 ): T {
   const result = schema.safeParse(data)
 
   if (!result.success) {
-    const issues = result.error.issues.map((issue) => ({
-      path: issue.path.join("."),
-      message: issue.message,
-    }))
-
     throw new z.ZodError(result.error.issues)
   }
 

@@ -49,7 +49,6 @@ export function CreateListForm({ open, onOpenChange }: CreateListFormProps) {
   const createList = useCreateList()
   const createItem = useCreateItem()
   const [showTemplateSelector, setShowTemplateSelector] = useState(false)
-  const [pendingTemplate, setPendingTemplate] = useState<ListTemplate | null>(null)
   const [pendingFormData, setPendingFormData] = useState<CreateListFormData | null>(null)
 
   const {
@@ -71,7 +70,6 @@ export function CreateListForm({ open, onOpenChange }: CreateListFormProps) {
   const handleOpenChange = useCallback((newOpen: boolean) => {
     if (!newOpen && !isSubmitting) {
       reset()
-      setPendingTemplate(null)
       setPendingFormData(null)
     }
     onOpenChange(newOpen)
@@ -117,7 +115,6 @@ export function CreateListForm({ open, onOpenChange }: CreateListFormProps) {
       }
 
       reset()
-      setPendingTemplate(null)
       setPendingFormData(null)
       onOpenChange(false)
       router.push(`/lists/${list.id}`)
@@ -142,7 +139,6 @@ export function CreateListForm({ open, onOpenChange }: CreateListFormProps) {
   }, [createListWithItems])
 
   const handleSelectTemplate = useCallback((template: ListTemplate) => {
-    setPendingTemplate(template)
     setShowTemplateSelector(false)
     
     // Continue with list creation using the template

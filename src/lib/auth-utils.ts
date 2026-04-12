@@ -7,7 +7,7 @@
 import { headers } from "next/headers"
 import { auth } from "./auth"
 import { prisma } from "./prisma"
-import { ApiError, Errors } from "./errors"
+import { Errors } from "./errors"
 import type { Member, Role } from "@prisma/client"
 
 export interface AuthContext {
