@@ -1,26 +1,57 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { ErrorBoundary, FallbackProps } from "react-error-boundary"
+import { AlertCircle, RefreshCw } from "lucide-react"
 import { Header } from "./header"
 import { Sidebar } from "./sidebar"
 import { MobileNav } from "./mobile-nav"
-
-interface User {
-  id: string
-  name: string
-  role: "PARENT" | "CHILD"
-  email: string | null
-  image: string | null
-}
+import { NavUser } from "@/lib/types"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 
 interface AppShellProps {
   children: React.ReactNode
-  user: User
+  user: NavUser
   initialNotificationCount: number
 }
 
-export function AppShell({ children, user, initialNotificationCount }: AppShellProps) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+function AppErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
+  return (
+    <div className="min-h-screen bg-background p-4 flex items-center justify-center">
+      <Card className="max-w-md w-full border-destructive">
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Something went wrong</h2>
+          <p className="text-muted-foreground text-center mb-4">
+            {error instanceof Error ? error.message : "Unknown error"}
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Reload Page
+            </Button>
+            <Button onClick={resetErrorBoundary}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Try Again
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function AppShellContent({ children, user, initialNotificationCount }: AppShellProps) {
+  // Load sidebar state from localStorage (hydration-safe)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false
+    return localStorage.getItem("sidebar-collapsed") === "true"
+  })
+
+  // Persist sidebar state
+  useEffect(() => {
+    localStorage.setItem("sidebar-collapsed", String(sidebarCollapsed))
+  }, [sidebarCollapsed])
 
   return (
     <div className="min-h-screen bg-background">
@@ -50,7 +81,7 @@ export function AppShell({ children, user, initialNotificationCount }: AppShellP
       <main
         id="main-content"
         className={`
-          transition-all duration-200 ease-in-out
+          motion-safe:transition-all motion-safe:duration-200 motion-safe:ease-in-out
           pt-16 pb-20 md:pb-0
           md:ml-16 lg:ml-64
           min-h-screen
@@ -62,7 +93,18 @@ export function AppShell({ children, user, initialNotificationCount }: AppShellP
       </main>
 
       {/* Mobile navigation - bottom fixed */}
-      <MobileNav userRole={user.role} />
+      <MobileNav 
+        userRole={user.role} 
+        initialNotificationCount={initialNotificationCount}
+      />
     </div>
+  )
+}
+
+export function AppShell(props: AppShellProps) {
+  return (
+    <ErrorBoundary FallbackComponent={AppErrorFallback}>
+      <AppShellContent {...props} />
+    </ErrorBoundary>
   )
 }

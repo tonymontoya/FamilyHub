@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { AppShell } from "@/components/layout/app-shell"
+import { NavUser } from "@/lib/types"
 
 export default async function AppLayout({
   children,
@@ -48,7 +49,7 @@ export default async function AppLayout({
     notificationCount = pendingCount
   }
 
-  const user = {
+  const user: NavUser = {
     id: member.id,
     name: member.displayName,
     role: member.role,

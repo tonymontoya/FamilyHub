@@ -29,7 +29,7 @@ export function Sidebar({ userRole, collapsed, onCollapse }: SidebarProps) {
     <TooltipProvider>
       <aside
         className={cn(
-          "fixed left-0 top-16 z-30 hidden h-[calc(100vh-4rem)] border-r bg-background transition-all duration-200 md:flex flex-col",
+          "fixed left-0 top-16 z-30 hidden h-[calc(100vh-4rem)] border-r bg-background motion-safe:transition-all motion-safe:duration-200 md:flex flex-col",
           collapsed ? "w-16" : "w-64"
         )}
         aria-label="Main navigation"

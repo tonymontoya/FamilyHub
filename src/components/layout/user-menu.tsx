@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { User, Settings, LogOut } from "lucide-react"
+import { NavUser } from "@/lib/types"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,18 +13,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { LogoutButton } from "@/components/auth/logout-button"
 
-interface User {
-  id: string
-  name: string
-  role: "PARENT" | "CHILD"
-  email: string | null
-  image: string | null
-}
-
 interface UserMenuProps {
-  user: User
+  user: NavUser
 }
 
 export function UserMenu({ user }: UserMenuProps) {
@@ -36,54 +35,61 @@ export function UserMenu({ user }: UserMenuProps) {
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger>
-        <Button
-          variant="ghost"
-          className="relative h-9 w-9 rounded-full"
-          aria-label="User menu"
-        >
-          <Avatar className="h-9 w-9">
-            <AvatarImage src={user.image || undefined} alt={user.name} />
-            <AvatarFallback className="bg-primary/10 text-primary font-medium">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user.name}</p>
-            <p className="text-xs leading-none text-muted-foreground">
-              {user.email}
-            </p>
-            <p className="text-xs leading-none text-muted-foreground mt-1">
-              {roleLabel}
-            </p>
+    <TooltipProvider>
+      <DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger>
+            <DropdownMenuTrigger>
+              <Button
+                variant="ghost"
+                className="relative h-9 w-9 rounded-full"
+                aria-label={`User menu: ${user.name}`}
+              >
+                <Avatar className="h-9 w-9">
+                  <AvatarImage src={user.image || undefined} alt={user.name} />
+                  <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{user.name}</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel className="font-normal">
+            <div className="flex flex-col space-y-1">
+              <p className="text-sm font-medium leading-none">{user.name}</p>
+              <p className="text-xs leading-none text-muted-foreground">
+                {user.email}
+              </p>
+              <p className="text-xs leading-none text-muted-foreground mt-1">
+                {roleLabel}
+              </p>
+            </div>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem 
+            className="cursor-pointer"
+            onClick={() => handleNavigate("/settings")}
+          >
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </DropdownMenuItem>
+          <DropdownMenuItem 
+            className="cursor-pointer"
+            onClick={() => handleNavigate("/family/children")}
+          >
+            <User className="mr-2 h-4 w-4" />
+            {user.role === "PARENT" ? "Family" : "My Profile"}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <div className="p-1">
+            <LogoutButton variant="ghost" className="w-full justify-start" />
           </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem 
-          className="cursor-pointer"
-          onClick={() => handleNavigate("/settings")}
-        >
-          <Settings className="mr-2 h-4 w-4" />
-          Settings
-        </DropdownMenuItem>
-        <DropdownMenuItem 
-          className="cursor-pointer"
-          onClick={() => handleNavigate("/family/children")}
-        >
-          <User className="mr-2 h-4 w-4" />
-          {user.role === "PARENT" ? "Family" : "My Profile"}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <div className="p-1">
-          <LogoutButton variant="ghost" className="w-full justify-start" />
-        </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </TooltipProvider>
   )
 }
 

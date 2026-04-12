@@ -9,12 +9,13 @@ import { Badge } from "@/components/ui/badge"
 
 interface MobileNavProps {
   userRole: "PARENT" | "CHILD"
+  initialNotificationCount: number
 }
 
 // Maximum visible items on mobile (design constraint)
 const MAX_VISIBLE_ITEMS = 5
 
-export function MobileNav({ userRole }: MobileNavProps) {
+export function MobileNav({ userRole, initialNotificationCount }: MobileNavProps) {
   const pathname = usePathname()
   const allItems = useMemo(() => getNavItems(userRole), [userRole])
 
@@ -44,6 +45,7 @@ export function MobileNav({ userRole }: MobileNavProps) {
             key={item.href}
             item={item}
             pathname={pathname}
+            pendingCount={item.badge === "pendingApprovals" ? initialNotificationCount : 0}
           />
         ))}
       </div>
@@ -54,28 +56,23 @@ export function MobileNav({ userRole }: MobileNavProps) {
 interface MobileNavItemProps {
   item: NavItem
   pathname: string
+  pendingCount: number
 }
 
-function MobileNavItem({ item, pathname }: MobileNavItemProps) {
+function MobileNavItem({ item, pathname, pendingCount }: MobileNavItemProps) {
   const isActive = isNavItemActive(item.href, pathname)
   const Icon = item.icon
 
-  // Mock badge values - would come from API in real implementation
-  const getBadgeCount = () => {
-    if (item.badge === "pendingApprovals") return 0 // Would come from props
-    if (item.badge === "overdueTodos") return 0 // Placeholder for #9
-    return 0
-  }
-
-  const badgeCount = getBadgeCount()
-  const showBadge = badgeCount > 0
+  // Show badge if there are pending items
+  const showBadge = pendingCount > 0
+  const displayCount = pendingCount > 9 ? "9+" : pendingCount
 
   return (
     <Link
       href={item.href}
       className={cn(
         "relative flex flex-col items-center justify-center gap-1 px-3 py-2 min-w-[64px] rounded-lg transition-colors",
-        "active:scale-95", // Touch feedback
+        "motion-safe:active:scale-95", // Touch feedback (respects reduced motion)
         isActive
           ? "text-primary"
           : "text-muted-foreground hover:text-foreground"
@@ -95,7 +92,7 @@ function MobileNavItem({ item, pathname }: MobileNavItemProps) {
             variant="destructive"
             className="absolute -right-2 -top-1 h-4 min-w-4 px-1 text-[10px] flex items-center justify-center"
           >
-            {badgeCount > 9 ? "9+" : badgeCount}
+            {displayCount}
           </Badge>
         )}
       </div>

@@ -2,20 +2,13 @@
 
 import Link from "next/link"
 import { Menu } from "lucide-react"
+import { NavUser } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { UserMenu } from "./user-menu"
 import { NotificationBell } from "./notification-bell"
 
-interface User {
-  id: string
-  name: string
-  role: "PARENT" | "CHILD"
-  email: string | null
-  image: string | null
-}
-
 interface HeaderProps {
-  user: User
+  user: NavUser
   initialNotificationCount: number
   onMenuToggle: () => void
 }
@@ -40,13 +33,13 @@ export function Header({ user, initialNotificationCount, onMenuToggle }: HeaderP
           {/* Logo */}
           <Link 
             href="/dashboard" 
-            className="flex items-center gap-2 font-bold text-lg"
+            className="flex items-center gap-2 font-bold text-base sm:text-lg"
             aria-label="Family Hub Home"
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               FH
             </div>
-            <span className="hidden sm:inline">Family Hub</span>
+            <span className="hidden xs:inline sm:hidden md:inline">Family Hub</span>
           </Link>
         </div>
 
