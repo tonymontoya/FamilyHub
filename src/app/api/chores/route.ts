@@ -1,31 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
-import { headers } from "next/headers"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
+import {
+  authenticate,
+  requireAuth,
+  requireRole,
+  checkRateLimit,
+  isValidUUID,
+  Errors,
+} from "@/lib/api-utils"
+import { rrulestr } from "rrule"
 
 // Rate limiting: Max 10 chore creations per minute per parent
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
-const RATE_LIMIT_MAX = 10
-const RATE_LIMIT_WINDOW_MS = 60 * 1000 // 1 minute
-
-function checkRateLimit(parentId: string): boolean {
-  const now = Date.now()
-  const record = rateLimitMap.get(parentId)
-  
-  if (!record || now > record.resetTime) {
-    rateLimitMap.set(parentId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS })
-    return true
-  }
-  
-  if (record.count >= RATE_LIMIT_MAX) {
-    return false
-  }
-  
-  record.count++
-  return true
-}
+const RATE_LIMIT_CONFIG = { max: 10, windowMs: 60 * 1000 }
 
 // Input validation schema
 const createChoreSchema = z.object({
@@ -43,52 +31,49 @@ const createChoreSchema = z.object({
     .int()
     .min(0, "Points must be 0 or more")
     .max(100, "Points must be 100 or less"),
-  recurrenceRule: z
-    .string()
-    .min(1, "Recurrence rule is required"),
+  recurrenceRule: z.string().min(1, "Recurrence rule is required"),
   assigneeId: z
     .string()
-    .uuid("Invalid assignee ID")
+    .refine((val) => val === "" || isValidUUID(val), {
+      message: "Invalid assignee ID",
+    })
     .optional(),
 })
 
 /**
+ * Validate RRULE format
+ */
+function validateRRule(rruleString: string): { valid: boolean; error?: string } {
+  try {
+    // Must be a valid RRULE that can be parsed
+    rrulestr(rruleString)
+    return { valid: true }
+  } catch (error) {
+    return { valid: false, error: `Invalid RRULE format: ${(error as Error).message}` }
+  }
+}
+
+/**
  * POST /api/chores
- * 
+ *
  * Create a new chore (parent only).
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify parent authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    })
+    // Authenticate
+    const authContext = await authenticate()
+    const authError = requireAuth(authContext)
+    if (authError) return authError
 
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      )
-    }
+    // Require parent role
+    const roleError = requireRole(authContext!, "PARENT")
+    if (roleError) return roleError
 
-    // Get parent's member record
-    const parentMember = await prisma.member.findUnique({
-      where: { username: session.user.email },
-    })
-
-    if (!parentMember || parentMember.role !== "PARENT") {
-      return NextResponse.json(
-        { error: "Forbidden - Only parents can create chores" },
-        { status: 403 }
-      )
-    }
+    const parentMember = authContext!.member
 
     // Check rate limit
-    if (!checkRateLimit(parentMember.id)) {
-      return NextResponse.json(
-        { error: "Rate limit exceeded. Please try again later." },
-        { status: 429 }
-      )
+    if (!checkRateLimit(`chore-create:${parentMember.id}`, RATE_LIMIT_CONFIG)) {
+      return Errors.tooManyRequests()
     }
 
     // Parse and validate request body
@@ -96,44 +81,42 @@ export async function POST(request: NextRequest) {
     try {
       body = await request.json()
     } catch {
-      return NextResponse.json(
-        { error: "Invalid JSON in request body" },
-        { status: 400 }
-      )
+      return Errors.badRequest("Invalid JSON in request body")
     }
 
     const validationResult = createChoreSchema.safeParse(body)
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: "Invalid input", details: validationResult.error.flatten() },
-        { status: 400 }
+      return Errors.badRequest(
+        "Invalid input",
+        validationResult.error.flatten()
       )
     }
 
-    const { title, description, points, recurrenceRule, assigneeId } = validationResult.data
+    const { title, description, points, recurrenceRule, assigneeId } =
+      validationResult.data
+
+    // Validate RRULE format
+    const rruleValidation = validateRRule(recurrenceRule)
+    if (!rruleValidation.valid) {
+      return Errors.badRequest(rruleValidation.error!)
+    }
 
     // Sanitize inputs
     const sanitizedTitle = title.trim()
     const sanitizedDescription = description?.trim() || null
 
     // If assignee provided, verify they belong to the same family
-    if (assigneeId) {
+    if (assigneeId && assigneeId !== "") {
       const assignee = await prisma.member.findUnique({
         where: { id: assigneeId },
       })
 
       if (!assignee) {
-        return NextResponse.json(
-          { error: "Assignee not found" },
-          { status: 404 }
-        )
+        return Errors.notFound("Assignee")
       }
 
       if (assignee.familyId !== parentMember.familyId) {
-        return NextResponse.json(
-          { error: "Assignee does not belong to your family" },
-          { status: 403 }
-        )
+        return Errors.forbidden("Assignee does not belong to your family")
       }
     }
 
@@ -159,18 +142,20 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({
-      id: chore.id,
-      title: chore.title,
-      description: chore.description,
-      points: chore.points,
-      recurrenceRule: chore.recurrenceRule,
-      assigneeId: chore.assigneeId,
-      assignee: chore.assignee,
-      status: chore.status,
-      createdAt: chore.createdAt,
-    }, { status: 201 })
-
+    return NextResponse.json(
+      {
+        id: chore.id,
+        title: chore.title,
+        description: chore.description,
+        points: chore.points,
+        recurrenceRule: chore.recurrenceRule,
+        assigneeId: chore.assigneeId,
+        assignee: chore.assignee,
+        status: chore.status,
+        createdAt: chore.createdAt,
+      },
+      { status: 201 }
+    )
   } catch (error) {
     console.error("Chore creation error:", error)
 
@@ -178,54 +163,36 @@ export async function POST(request: NextRequest) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return NextResponse.json(
-        { error: "A chore with this title already exists" },
-        { status: 409 }
-      )
+      return Errors.conflict("A chore with this title already exists")
     }
 
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
+    return Errors.internal()
   }
 }
 
 /**
  * GET /api/chores
- * 
+ *
  * Get chores for the family with optional filters.
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verify authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    })
+    // Authenticate
+    const authContext = await authenticate()
+    const authError = requireAuth(authContext)
+    if (authError) return authError
 
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      )
-    }
-
-    // Get member record
-    const member = await prisma.member.findUnique({
-      where: { username: session.user.email },
-    })
-
-    if (!member) {
-      return NextResponse.json(
-        { error: "Member not found" },
-        { status: 404 }
-      )
-    }
+    const member = authContext!.member
 
     // Parse query parameters
     const { searchParams } = new URL(request.url)
     const assigneeId = searchParams.get("assigneeId")
     const status = searchParams.get("status") as "ACTIVE" | "ARCHIVED" | null
+
+    // Validate assigneeId if provided
+    if (assigneeId && !isValidUUID(assigneeId)) {
+      return Errors.badRequest("Invalid assignee ID")
+    }
 
     // Build where clause
     const where: Prisma.ChoreWhereInput = {
@@ -259,12 +226,8 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json({ chores })
-
   } catch (error) {
     console.error("Get chores error:", error)
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
+    return Errors.internal()
   }
 }

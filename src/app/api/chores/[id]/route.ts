@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import { headers } from "next/headers"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
+import {
+  authenticate,
+  requireAuth,
+  requireRole,
+  isValidUUID,
+  Errors,
+} from "@/lib/api-utils"
+import { rrulestr } from "rrule"
 
 // Update validation schema
 const updateChoreSchema = z.object({
@@ -22,23 +28,35 @@ const updateChoreSchema = z.object({
     .min(0, "Points must be 0 or more")
     .max(100, "Points must be 100 or less")
     .optional(),
-  recurrenceRule: z
-    .string()
-    .min(1, "Recurrence rule is required")
-    .optional(),
+  recurrenceRule: z.string().min(1, "Recurrence rule is required").optional(),
   assigneeId: z
     .string()
-    .uuid("Invalid assignee ID")
+    .refine((val) => val === "" || val === null || isValidUUID(val), {
+      message: "Invalid assignee ID",
+    })
     .optional()
     .nullable(),
-  status: z
-    .enum(["ACTIVE", "ARCHIVED"])
-    .optional(),
+  status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
 })
 
 /**
+ * Validate RRULE format
+ */
+function validateRRule(rruleString: string): { valid: boolean; error?: string } {
+  try {
+    rrulestr(rruleString)
+    return { valid: true }
+  } catch (error) {
+    return {
+      valid: false,
+      error: `Invalid RRULE format: ${(error as Error).message}`,
+    }
+  }
+}
+
+/**
  * PATCH /api/chores/:id
- * 
+ *
  * Update chore details (parent only).
  */
 export async function PATCH(
@@ -48,29 +66,21 @@ export async function PATCH(
   try {
     const { id: choreId } = await params
 
-    // Verify parent authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    })
-
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      )
+    // Validate UUID format
+    if (!isValidUUID(choreId)) {
+      return Errors.badRequest("Invalid chore ID format")
     }
 
-    // Get parent's member record
-    const parentMember = await prisma.member.findUnique({
-      where: { username: session.user.email },
-    })
+    // Authenticate
+    const authContext = await authenticate()
+    const authError = requireAuth(authContext)
+    if (authError) return authError
 
-    if (!parentMember || parentMember.role !== "PARENT") {
-      return NextResponse.json(
-        { error: "Forbidden - Only parents can update chores" },
-        { status: 403 }
-      )
-    }
+    // Require parent role
+    const roleError = requireRole(authContext!, "PARENT")
+    if (roleError) return roleError
+
+    const parentMember = authContext!.member
 
     // Get the chore
     const chore = await prisma.chore.findUnique({
@@ -78,18 +88,12 @@ export async function PATCH(
     })
 
     if (!chore) {
-      return NextResponse.json(
-        { error: "Chore not found" },
-        { status: 404 }
-      )
+      return Errors.notFound("Chore")
     }
 
     // Verify chore belongs to parent's family
     if (chore.familyId !== parentMember.familyId) {
-      return NextResponse.json(
-        { error: "Access denied" },
-        { status: 403 }
-      )
+      return Errors.forbidden("Access denied")
     }
 
     // Parse and validate request body
@@ -97,46 +101,45 @@ export async function PATCH(
     try {
       body = await request.json()
     } catch {
-      return NextResponse.json(
-        { error: "Invalid JSON in request body" },
-        { status: 400 }
-      )
+      return Errors.badRequest("Invalid JSON in request body")
     }
 
     const validationResult = updateChoreSchema.safeParse(body)
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: "Invalid input", details: validationResult.error.flatten() },
-        { status: 400 }
+      return Errors.badRequest(
+        "Invalid input",
+        validationResult.error.flatten()
       )
     }
 
     const updates = validationResult.data
 
+    // Validate RRULE if being updated
+    if (updates.recurrenceRule) {
+      const rruleValidation = validateRRule(updates.recurrenceRule)
+      if (!rruleValidation.valid) {
+        return Errors.badRequest(rruleValidation.error!)
+      }
+    }
+
     // If assignee being updated, verify they belong to same family
-    if (updates.assigneeId) {
+    if (updates.assigneeId && updates.assigneeId !== "") {
       const assignee = await prisma.member.findUnique({
         where: { id: updates.assigneeId },
       })
 
       if (!assignee) {
-        return NextResponse.json(
-          { error: "Assignee not found" },
-          { status: 404 }
-        )
+        return Errors.notFound("Assignee")
       }
 
       if (assignee.familyId !== parentMember.familyId) {
-        return NextResponse.json(
-          { error: "Assignee does not belong to your family" },
-          { status: 403 }
-        )
+        return Errors.forbidden("Assignee does not belong to your family")
       }
     }
 
     // Sanitize inputs
     const updateData: Record<string, unknown> = {}
-    
+
     if (updates.title !== undefined) {
       updateData.title = updates.title.trim()
     }
@@ -150,7 +153,7 @@ export async function PATCH(
       updateData.recurrenceRule = updates.recurrenceRule
     }
     if (updates.assigneeId !== undefined) {
-      updateData.assigneeId = updates.assigneeId
+      updateData.assigneeId = updates.assigneeId === "" ? null : updates.assigneeId
     }
     if (updates.status !== undefined) {
       updateData.status = updates.status
@@ -182,19 +185,15 @@ export async function PATCH(
       createdAt: updatedChore.createdAt,
       updatedAt: updatedChore.updatedAt,
     })
-
   } catch (error) {
     console.error("Chore update error:", error)
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
+    return Errors.internal()
   }
 }
 
 /**
  * DELETE /api/chores/:id
- * 
+ *
  * Soft delete (archive) a chore (parent only).
  */
 export async function DELETE(
@@ -204,29 +203,21 @@ export async function DELETE(
   try {
     const { id: choreId } = await params
 
-    // Verify parent authentication
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    })
-
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      )
+    // Validate UUID format
+    if (!isValidUUID(choreId)) {
+      return Errors.badRequest("Invalid chore ID format")
     }
 
-    // Get parent's member record
-    const parentMember = await prisma.member.findUnique({
-      where: { username: session.user.email },
-    })
+    // Authenticate
+    const authContext = await authenticate()
+    const authError = requireAuth(authContext)
+    if (authError) return authError
 
-    if (!parentMember || parentMember.role !== "PARENT") {
-      return NextResponse.json(
-        { error: "Forbidden - Only parents can delete chores" },
-        { status: 403 }
-      )
-    }
+    // Require parent role
+    const roleError = requireRole(authContext!, "PARENT")
+    if (roleError) return roleError
+
+    const parentMember = authContext!.member
 
     // Get the chore
     const chore = await prisma.chore.findUnique({
@@ -234,18 +225,12 @@ export async function DELETE(
     })
 
     if (!chore) {
-      return NextResponse.json(
-        { error: "Chore not found" },
-        { status: 404 }
-      )
+      return Errors.notFound("Chore")
     }
 
     // Verify chore belongs to parent's family
     if (chore.familyId !== parentMember.familyId) {
-      return NextResponse.json(
-        { error: "Access denied" },
-        { status: 403 }
-      )
+      return Errors.forbidden("Access denied")
     }
 
     // Soft delete by updating status and deletedAt
@@ -261,12 +246,8 @@ export async function DELETE(
       success: true,
       message: "Chore archived successfully",
     })
-
   } catch (error) {
     console.error("Chore delete error:", error)
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
+    return Errors.internal()
   }
 }

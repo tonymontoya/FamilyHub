@@ -1,10 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Check, Star, Loader2 } from "lucide-react"
+import { Star, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface TodayChore {
@@ -18,21 +17,48 @@ interface TodayChore {
   completed: boolean
 }
 
+interface TodayChoresResponse {
+  chores: TodayChore[]
+  meta?: {
+    date: string
+    timezone: string
+    invalidRules?: Array<{ choreId: string; error: string }>
+  }
+}
+
 export function TodayChores() {
   const [chores, setChores] = useState<TodayChore[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [completingChore, setCompletingChore] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchTodayChores = async () => {
     try {
-      const response = await fetch("/api/chores/today")
+      setIsLoading(true)
+      setError(null)
+
+      // Get user's timezone
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+      const response = await fetch(
+        `/api/chores/today?timezone=${encodeURIComponent(timezone)}`
+      )
+
       if (!response.ok) {
-        throw new Error("Failed to fetch today's chores")
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Failed to fetch today's chores")
       }
-      const data = await response.json()
+
+      const data: TodayChoresResponse = await response.json()
       setChores(data.chores)
-    } catch {
-      toast.error("Failed to load today's chores")
+
+      // Warn about invalid rules in development
+      if (data.meta?.invalidRules && data.meta.invalidRules.length > 0) {
+        console.warn("Chores with invalid recurrence rules:", data.meta.invalidRules)
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load today's chores"
+      setError(message)
+      toast.error(message)
     } finally {
       setIsLoading(false)
     }
@@ -42,40 +68,27 @@ export function TodayChores() {
     fetchTodayChores()
   }, [])
 
-  const handleComplete = async (choreId: string) => {
-    setCompletingChore(choreId)
-
-    try {
-      const response = await fetch("/api/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          choreId,
-          completedAt: new Date().toISOString(),
-        }),
-      })
-
-      if (!response.ok) {
-        const result = await response.json()
-        toast.error(result.error || "Failed to complete chore")
-        return
-      }
-
-      toast.success("Chore marked as complete!")
-      // Refresh the list
-      fetchTodayChores()
-    } catch {
-      toast.error("Something went wrong")
-    } finally {
-      setCompletingChore(null)
-    }
-  }
-
   if (isLoading) {
     return (
       <Card>
         <CardContent className="flex h-32 items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="py-6">
+          <p className="text-center text-destructive">{error}</p>
+          <button
+            onClick={fetchTodayChores}
+            className="mt-2 text-sm text-muted-foreground hover:text-foreground"
+          >
+            Try again
+          </button>
         </CardContent>
       </Card>
     )
@@ -114,7 +127,11 @@ export function TodayChores() {
             >
               <div className="flex-1">
                 <div className="mb-1 flex items-center gap-2">
-                  <h4 className={`font-medium ${chore.completed ? "line-through" : ""}`}>
+                  <h4
+                    className={`font-medium ${
+                      chore.completed ? "line-through" : ""
+                    }`}
+                  >
                     {chore.title}
                   </h4>
                   <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
@@ -122,9 +139,13 @@ export function TodayChores() {
                     {chore.points}
                   </span>
                 </div>
-                
+
                 {chore.description && (
-                  <p className={`mb-1 text-sm text-muted-foreground ${chore.completed ? "line-through" : ""}`}>
+                  <p
+                    className={`mb-1 text-sm text-muted-foreground ${
+                      chore.completed ? "line-through" : ""
+                    }`}
+                  >
                     {chore.description}
                   </p>
                 )}
@@ -136,27 +157,13 @@ export function TodayChores() {
                 )}
               </div>
 
-              {!chore.completed && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleComplete(chore.id)}
-                  disabled={completingChore === chore.id}
-                >
-                  {completingChore === chore.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Check className="mr-1 h-4 w-4" />
-                      Done
-                    </>
-                  )}
-                </Button>
-              )}
-
-              {chore.completed && (
+              {chore.completed ? (
                 <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-200">
                   Completed
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Not completed
                 </span>
               )}
             </div>

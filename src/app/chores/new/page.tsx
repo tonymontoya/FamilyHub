@@ -9,28 +9,46 @@ import { Loader2, ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
+// Constants
+const MAX_POINTS = 100
+const MIN_POINTS = 0
+const MAX_TITLE_LENGTH = 100
+const MAX_DESCRIPTION_LENGTH = 500
 
 // Form validation schema
 const createChoreSchema = z.object({
   title: z
     .string()
     .min(2, "Title must be at least 2 characters")
-    .max(100, "Title must be less than 100 characters"),
+    .max(MAX_TITLE_LENGTH, `Title must be less than ${MAX_TITLE_LENGTH} characters`),
   description: z
     .string()
-    .max(500, "Description must be less than 500 characters")
+    .max(MAX_DESCRIPTION_LENGTH, `Description must be less than ${MAX_DESCRIPTION_LENGTH} characters`)
     .optional(),
   points: z
     .number()
     .int()
-    .min(0, "Points must be 0 or more")
-    .max(100, "Points must be 100 or less"),
-  recurrenceType: z.enum(["daily", "weekdays", "weekly", "custom"]),
+    .min(MIN_POINTS, `Points must be ${MIN_POINTS} or more`)
+    .max(MAX_POINTS, `Points must be ${MAX_POINTS} or less`),
+  recurrenceType: z.enum(["daily", "weekdays", "weekly"]),
   weeklyDays: z.array(z.string()).optional(),
   assigneeId: z.string().optional(),
 })
@@ -78,7 +96,7 @@ function getRecurrenceText(type: string, weeklyDays?: string[]): string {
           SA: "Saturday",
           SU: "Sunday",
         }
-        return `Weekly on ${weeklyDays.map(d => dayNames[d]).join(", ")}`
+        return `Weekly on ${weeklyDays.map((d) => dayNames[d]).join(", ")}`
       }
       return "Weekly"
     default:
@@ -108,6 +126,7 @@ export default function CreateChorePage() {
     handleSubmit,
     control,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<CreateChoreFormData>({
     resolver: zodResolver(createChoreSchema),
@@ -122,6 +141,11 @@ export default function CreateChorePage() {
 
   const recurrenceType = watch("recurrenceType")
 
+  // Sync selectedDays with form state
+  useEffect(() => {
+    setValue("weeklyDays", selectedDays)
+  }, [selectedDays, setValue])
+
   // Fetch family members for assignee dropdown
   useEffect(() => {
     async function fetchFamilyMembers() {
@@ -135,6 +159,8 @@ export default function CreateChorePage() {
             ...data.children,
           ]
           setFamilyMembers(members)
+        } else {
+          toast.error("Failed to load family members")
         }
       } catch {
         toast.error("Failed to load family members")
@@ -150,6 +176,13 @@ export default function CreateChorePage() {
     setIsLoading(true)
 
     try {
+      // Validate weekly days if weekly recurrence selected
+      if (data.recurrenceType === "weekly" && selectedDays.length === 0) {
+        toast.error("Please select at least one day for weekly recurrence")
+        setIsLoading(false)
+        return
+      }
+
       // Generate RRULE
       const recurrenceRule = generateRRule(
         data.recurrenceType,
@@ -186,10 +219,8 @@ export default function CreateChorePage() {
   }
 
   const toggleDay = (day: string) => {
-    setSelectedDays(prev =>
-      prev.includes(day)
-        ? prev.filter(d => d !== day)
-        : [...prev, day]
+    setSelectedDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     )
   }
 
@@ -222,11 +253,14 @@ export default function CreateChorePage() {
                 <Input
                   id="title"
                   placeholder="e.g., Clean bedroom"
+                  disabled={isLoading}
                   {...register("title")}
                   aria-invalid={errors.title ? "true" : "false"}
                 />
                 {errors.title && (
-                  <p className="text-sm text-destructive">{errors.title.message}</p>
+                  <p className="text-sm text-destructive">
+                    {errors.title.message}
+                  </p>
                 )}
               </div>
 
@@ -236,12 +270,15 @@ export default function CreateChorePage() {
                 <Textarea
                   id="description"
                   placeholder="e.g., Make bed, pick up toys, vacuum floor"
+                  disabled={isLoading}
                   {...register("description")}
                   aria-invalid={errors.description ? "true" : "false"}
                   rows={3}
                 />
                 {errors.description && (
-                  <p className="text-sm text-destructive">{errors.description.message}</p>
+                  <p className="text-sm text-destructive">
+                    {errors.description.message}
+                  </p>
                 )}
               </div>
 
@@ -253,16 +290,19 @@ export default function CreateChorePage() {
                 <Input
                   id="points"
                   type="number"
-                  min={0}
-                  max={100}
+                  min={MIN_POINTS}
+                  max={MAX_POINTS}
+                  disabled={isLoading}
                   {...register("points", { valueAsNumber: true })}
                   aria-invalid={errors.points ? "true" : "false"}
                 />
                 {errors.points ? (
-                  <p className="text-sm text-destructive">{errors.points.message}</p>
+                  <p className="text-sm text-destructive">
+                    {errors.points.message}
+                  </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Points awarded when chore is completed (0-100)
+                    Points awarded when chore is completed ({MIN_POINTS}-{MAX_POINTS})
                   </p>
                 )}
               </div>
@@ -276,34 +316,49 @@ export default function CreateChorePage() {
                   name="recurrenceType"
                   control={control}
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      disabled={isLoading}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select recurrence" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="daily">Every day</SelectItem>
-                        <SelectItem value="weekdays">Weekdays only (Mon-Fri)</SelectItem>
-                        <SelectItem value="weekly">Weekly on specific days</SelectItem>
+                        <SelectItem value="weekdays">
+                          Weekdays only (Mon-Fri)
+                        </SelectItem>
+                        <SelectItem value="weekly">
+                          Weekly on specific days
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   )}
                 />
                 {errors.recurrenceType && (
-                  <p className="text-sm text-destructive">{errors.recurrenceType.message}</p>
+                  <p className="text-sm text-destructive">
+                    {errors.recurrenceType.message}
+                  </p>
                 )}
               </div>
 
               {/* Weekly Days Selection */}
               {recurrenceType === "weekly" && (
                 <div className="space-y-2">
-                  <Label>Repeat on</Label>
+                  <Label>
+                    Repeat on <span className="text-destructive">*</span>
+                  </Label>
                   <div className="flex flex-wrap gap-2">
                     {DAYS_OF_WEEK.map((day) => (
                       <Button
                         key={day.value}
                         type="button"
-                        variant={selectedDays.includes(day.value) ? "default" : "outline"}
+                        variant={
+                          selectedDays.includes(day.value) ? "default" : "outline"
+                        }
                         size="sm"
+                        disabled={isLoading}
                         onClick={() => toggleDay(day.value)}
                       >
                         {day.label}
@@ -325,19 +380,26 @@ export default function CreateChorePage() {
                   name="assigneeId"
                   control={control}
                   render={({ field }) => (
-                    <Select 
-                      onValueChange={field.onChange} 
+                    <Select
+                      onValueChange={field.onChange}
                       defaultValue={field.value}
-                      disabled={isLoadingMembers}
+                      disabled={isLoadingMembers || isLoading}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder={isLoadingMembers ? "Loading..." : "Select someone"} />
+                        <SelectValue
+                          placeholder={
+                            isLoadingMembers ? "Loading..." : "Select someone"
+                          }
+                        />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Anyone (no specific assignee)</SelectItem>
+                        <SelectItem value="">
+                          Anyone (no specific assignee)
+                        </SelectItem>
                         {familyMembers.map((member) => (
                           <SelectItem key={member.id} value={member.id}>
-                            {member.displayName} {member.role === "PARENT" && "(You)"}
+                            {member.displayName}{" "}
+                            {member.role === "PARENT" && "(You)"}
                           </SelectItem>
                         ))}
                       </SelectContent>
