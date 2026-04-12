@@ -1,0 +1,34 @@
+version: '3.8'
+
+# Family Hub - Test Database
+# Isolated PostgreSQL instance for E2E testing
+
+services:
+  db-test:
+    image: postgres:16-alpine
+    container_name: familyhub-db-test
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=familyhub_test
+      - POSTGRES_USER=familyhub
+      - POSTGRES_PASSWORD=testpassword
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # Different port to avoid dev conflict
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U familyhub -d familyhub_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - familyhub-test-network
+
+volumes:
+  postgres_test_data:
+    driver: local
+
+networks:
+  familyhub-test-network:
+    driver: bridge
