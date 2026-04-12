@@ -80,3 +80,5 @@ prisma/migrations/*/migration_lock.toml
 .netlify
 .AGENTS.md
 .CLAUDE.md
+playwright-report/
+test-results/

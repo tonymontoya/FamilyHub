@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { PrismaClient } from "@prisma/client"
+import { username } from "better-auth/plugins"
 
 const prisma = new PrismaClient()
 
@@ -21,6 +22,17 @@ export const auth = betterAuth({
     window: 60, // 1 minute
     max: 5, // 5 requests per minute
   },
+  plugins: [
+    username({
+      minUsernameLength: 3,
+      maxUsernameLength: 20,
+      usernameValidator: (username) => {
+        // Allow lowercase letters, numbers, and underscores only
+        // This prevents special characters that could cause issues
+        return /^[a-z0-9_]+$/.test(username)
+      },
+    }),
+  ],
 })
 
 export type Auth = typeof auth
