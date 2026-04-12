@@ -2,6 +2,7 @@ import {
   LayoutDashboard,
   CheckSquare,
   ListTodo,
+  List,
   Users,
   Settings,
   Trophy,
@@ -43,6 +44,11 @@ export const navigationConfig: NavConfig = {
       badge: "overdueTodos",
     },
     {
+      label: "Lists",
+      href: "/lists",
+      icon: List,
+    },
+    {
       label: "Family",
       href: "/family",
       icon: Users,
@@ -82,6 +88,11 @@ export const navigationConfig: NavConfig = {
       href: "/todos",
       icon: ListTodo,
       badge: "overdueTodos",
+    },
+    {
+      label: "Lists",
+      href: "/lists",
+      icon: List,
     },
     {
       label: "My Points",

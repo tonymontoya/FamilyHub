@@ -2,8 +2,23 @@
 
 import { use, useCallback, useMemo, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Trash2 } from "lucide-react"
+import { ArrowLeft, Trash2, Edit } from "lucide-react"
 import { toast } from "sonner"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -19,9 +34,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { ListTypeBadge } from "@/components/lists/list-type-badge"
-import { ItemRow } from "@/components/lists/item-row"
+import { SortableItemRow } from "@/components/lists/sortable-item-row"
 import { AddItemForm } from "@/components/lists/add-item-form"
-import { useList, useDeleteList } from "@/hooks/lists"
+import { EditListForm } from "@/components/lists/edit-list-form"
+import { useList, useDeleteList, useReorderItems } from "@/hooks/lists"
 import { useRouter } from "next/navigation"
 
 interface ListDetailPageProps {
@@ -33,17 +49,38 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
   const router = useRouter()
   const { data: list, isLoading, isError } = useList(id)
   const deleteList = useDeleteList()
+  const reorderItems = useReorderItems()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  
+  // Local state for optimistic DND reordering
+  const [items, setItems] = useState(list?.items || [])
+  
+  // Sync local state when data loads
+  if (list?.items && items !== list.items) {
+    setItems(list.items)
+  }
+
+  // Sensors for DND
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   // Memoize progress calculation
   const { completedCount, progress } = useMemo(() => {
-    if (!list) return { completedCount: 0, progress: 0 }
-    const completed = list.items.filter((item) => item.completed).length
-    const prog = list.items.length > 0
-      ? Math.round((completed / list.items.length) * 100)
+    const completed = items.filter((item) => item.completed).length
+    const prog = items.length > 0
+      ? Math.round((completed / items.length) * 100)
       : 0
     return { completedCount: completed, progress: prog }
-  }, [list])
+  }, [items])
 
   const handleDeleteClick = useCallback(() => {
     setShowDeleteDialog(true)
@@ -51,7 +88,7 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
 
   const handleConfirmDelete = useCallback(() => {
     setShowDeleteDialog(false)
-    
+
     deleteList.mutate(id, {
       onSuccess: () => {
         toast.success("List deleted", {
@@ -71,10 +108,42 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
     setShowDeleteDialog(false)
   }, [])
 
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      setItems((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id)
+        const newIndex = items.findIndex((item) => item.id === over.id)
+
+        const newItems = arrayMove(items, oldIndex, newIndex)
+        
+        // Persist to server
+        reorderItems.mutate(
+          { 
+            listId: id, 
+            input: { itemIds: newItems.map((item) => item.id) } 
+          },
+          {
+            onError: (error) => {
+              toast.error("Failed to reorder items", {
+                description: error instanceof Error ? error.message : "Please try again",
+              })
+              // Revert on error
+              setItems(items)
+            },
+          }
+        )
+
+        return newItems
+      })
+    }
+  }, [id, reorderItems])
+
   if (isError) {
     return (
       <div className="container mx-auto py-8">
-        <div 
+        <div
           className="rounded-lg border border-destructive/50 bg-destructive/10 p-8 text-center"
           role="alert"
           aria-live="assertive"
@@ -125,6 +194,14 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
             <Button
               variant="outline"
               size="icon"
+              onClick={() => setShowEditDialog(true)}
+              aria-label={`Edit list "${list.title}"`}
+            >
+              <Edit className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
               onClick={handleDeleteClick}
               disabled={deleteList.isPending}
               aria-label={`Delete list "${list.title}"`}
@@ -135,17 +212,17 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
         </div>
 
         {/* Progress */}
-        {list.items.length > 0 && (
+        {items.length > 0 && (
           <div className="mt-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground" aria-live="polite">
-                {completedCount} of {list.items.length} completed
+                {completedCount} of {items.length} completed
               </span>
               <span className="font-medium" aria-label={`${progress}% complete`}>
                 {progress}%
               </span>
             </div>
-            <div 
+            <div
               className="mt-2 h-2 rounded-full bg-muted"
               role="progressbar"
               aria-valuenow={progress}
@@ -169,9 +246,9 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
         <AddItemForm listId={id} />
       </div>
 
-      {/* Items List */}
-      {list.items.length === 0 ? (
-        <div 
+      {/* Items List with DND */}
+      {items.length === 0 ? (
+        <div
           className="rounded-lg border border-dashed p-8 text-center"
           role="status"
           aria-live="polite"
@@ -182,12 +259,30 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
           </p>
         </div>
       ) : (
-        <div className="space-y-2" role="list" aria-label="List items">
-          {list.items.map((item) => (
-            <ItemRow key={item.id} item={item} listId={id} />
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={items.map((item) => item.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-2" role="list" aria-label="List items">
+              {items.map((item) => (
+                <SortableItemRow key={item.id} item={item} listId={id} />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
+
+      {/* Edit List Dialog */}
+      <EditListForm
+        list={list}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -195,12 +290,12 @@ export default function ListDetailPage({ params }: ListDetailPageProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete list?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{list.title}&quot;? This will delete all {list.items.length} items in the list. This action cannot be undone.
+              Are you sure you want to delete &quot;{list.title}&quot;? This will delete all {items.length} items in the list. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={handleCancelDelete}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleConfirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
