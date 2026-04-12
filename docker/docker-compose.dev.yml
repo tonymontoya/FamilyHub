@@ -6,8 +6,8 @@ version: '3.8'
 services:
   app:
     build:
-      context: .
-      dockerfile: Dockerfile.dev
+      context: ..
+      dockerfile: docker/Dockerfile.dev
     container_name: familyhub-dev
     restart: unless-stopped
     environment:

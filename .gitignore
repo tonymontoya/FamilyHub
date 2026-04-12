@@ -78,3 +78,5 @@ prisma/migrations/*/migration_lock.toml
 # Misc
 .vercel
 .netlify
+.AGENTS.md
+.CLAUDE.md
