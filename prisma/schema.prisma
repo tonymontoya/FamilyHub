@@ -262,6 +262,7 @@ model CalendarEvent {
   
   @@index([familyId, startDate])
   @@index([familyId, deletedAt])
+  @@index([familyId, updatedAt])
   @@index([isRecurring, recurrenceEnd])
   @@map("calendar_events")
 }

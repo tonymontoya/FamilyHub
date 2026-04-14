@@ -129,6 +129,37 @@ export const PATCH = withErrorHandling(async (request, context) => {
   const body = await request.json()
   const data = validateOrThrow(updateEventSchema, body)
 
+  // Manual validation for update (since updateEventSchema can't have refinements with .partial())
+  const validationErrors: Array<{ path: string; message: string }> = []
+
+  // If setting isRecurring to true, must have recurrenceRule
+  if (data.isRecurring === true && !data.recurrenceRule) {
+    validationErrors.push({
+      path: "recurrenceRule",
+      message: "Recurring events must have a recurrence rule",
+    })
+  }
+
+  // If has endTime, must have startTime
+  if (data.endTime !== undefined && data.endTime !== null && !data.startTime && !existingEvent.startTime) {
+    validationErrors.push({
+      path: "endTime",
+      message: "Cannot specify end time without start time",
+    })
+  }
+
+  // If all-day (no startTime), cannot have endTime
+  if (data.startTime === null && data.endTime !== undefined && data.endTime !== null) {
+    validationErrors.push({
+      path: "endTime",
+      message: "All-day events cannot have an end time",
+    })
+  }
+
+  if (validationErrors.length > 0) {
+    throw Errors.validation(validationErrors)
+  }
+
   // Validate assignees are family members (if provided)
   if (data.assigneeIds !== undefined && data.assigneeIds.length > 0) {
     const validMembers = await prisma.member.count({
@@ -146,10 +177,10 @@ export const PATCH = withErrorHandling(async (request, context) => {
     }
   }
 
-  // Parse dates if provided
+  // Parse dates if provided (all stored as UTC)
   const startDate = data.startDate ? parseISO(data.startDate) : undefined
   const startTime = data.startTime
-    ? new Date(`${data.startDate || existingEvent.startDate.toISOString().split("T")[0]}T${data.startTime}:00`)
+    ? new Date(`${data.startDate || existingEvent.startDate.toISOString().split("T")[0]}T${data.startTime}:00Z`)
     : data.startTime === null
       ? null
       : undefined
@@ -160,7 +191,7 @@ export const PATCH = withErrorHandling(async (request, context) => {
       : undefined
   const endTime = data.endTime
     ? new Date(
-        `${(data.endDate || data.startDate || existingEvent.startDate.toISOString().split("T")[0])}T${data.endTime}:00`
+        `${(data.endDate || data.startDate || existingEvent.startDate.toISOString().split("T")[0])}T${data.endTime}:00Z`
       )
     : data.endTime === null
       ? null
@@ -170,6 +201,16 @@ export const PATCH = withErrorHandling(async (request, context) => {
     : data.recurrenceEnd === null
       ? null
       : undefined
+
+  // Validate endDate >= startDate (if both are being set or one is being changed)
+  const effectiveStartDate = startDate ?? existingEvent.startDate
+  const effectiveEndDate = endDate ?? existingEvent.endDate
+  if (effectiveEndDate && effectiveStartDate && effectiveEndDate < effectiveStartDate) {
+    throw Errors.validation([{
+      path: "endDate",
+      message: "End date must be on or after start date",
+    }])
+  }
 
   // Update event and sync attendees in transaction
   const event = await prisma.$transaction(async (tx) => {

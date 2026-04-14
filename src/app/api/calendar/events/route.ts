@@ -219,18 +219,26 @@ export const POST = withErrorHandling(async (request) => {
     }
   }
 
-  // Parse dates
+  // Parse dates (all stored as UTC)
   const startDate = parseISO(data.startDate)
   const startTime = data.startTime
-    ? new Date(`${data.startDate}T${data.startTime}:00`)
+    ? new Date(`${data.startDate}T${data.startTime}:00Z`)  // Z suffix = UTC
     : null
   const endDate = data.endDate ? parseISO(data.endDate) : null
   const endTime = data.endTime && data.startTime
-    ? new Date(`${data.endDate || data.startDate}T${data.endTime}:00`)
+    ? new Date(`${data.endDate || data.startDate}T${data.endTime}:00Z`)  // Z suffix = UTC
     : null
   const recurrenceEnd = data.recurrenceEnd
-    ? new Date(data.recurrenceEnd)
+    ? new Date(data.recurrenceEnd)  // Already ISO 8601 with timezone
     : null
+
+  // Validate endDate >= startDate
+  if (endDate && endDate < startDate) {
+    throw Errors.validation([{
+      path: "endDate",
+      message: "End date must be on or after start date",
+    }])
+  }
 
   // Create event with reminders in transaction
   const event = await prisma.$transaction(async (tx) => {
