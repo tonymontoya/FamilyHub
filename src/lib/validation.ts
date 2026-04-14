@@ -178,83 +178,55 @@ const reminderSchema = z.object({
   type: reminderTypeSchema.default("BROWSER"),
 })
 
-// Create event schema
-export const createEventSchema = z
-  .object({
-    title: nonEmptyString(200, "Title"),
-    description: optionalNonEmptyString(2000, "Description"),
-    startDate: dateStringSchema,
-    startTime: timeStringSchema,
-    endDate: dateStringSchema.optional(),
-    endTime: timeStringSchema,
-    timezone: timezoneSchema,
-    isRecurring: z.boolean().default(false),
-    recurrenceRule: rruleSchema,
-    recurrenceEnd: z.string().datetime().optional(), // ISO 8601
-    assigneeIds: z.array(uuidSchema).default([]),
-    isFamilyWide: z.boolean().default(true),
-    type: eventTypeSchema.default("EVENT"),
-    location: optionalNonEmptyString(500, "Location"),
-    color: hexColorSchema,
+// Base event fields (without refinements)
+const eventBaseSchema = z.object({
+  title: nonEmptyString(200, "Title"),
+  description: optionalNonEmptyString(2000, "Description"),
+  startDate: dateStringSchema,
+  startTime: timeStringSchema,
+  endDate: dateStringSchema.optional(),
+  endTime: timeStringSchema,
+  timezone: timezoneSchema,
+  isRecurring: z.boolean().default(false),
+  recurrenceRule: rruleSchema,
+  recurrenceEnd: z.string().datetime().optional(),
+  assigneeIds: z.array(uuidSchema).default([]),
+  isFamilyWide: z.boolean().default(true),
+  type: eventTypeSchema.default("EVENT"),
+  location: optionalNonEmptyString(500, "Location"),
+  color: hexColorSchema,
+})
+
+// Create event schema with reminders and refinements
+export const createEventSchema = eventBaseSchema
+  .extend({
     reminders: z.array(reminderSchema).default([]),
   })
   .refine(
     (data) => {
-      // If recurring, must have recurrenceRule
-      if (data.isRecurring && !data.recurrenceRule) {
-        return false
-      }
+      if (data.isRecurring && !data.recurrenceRule) return false
       return true
     },
-    {
-      message: "Recurring events must have a recurrence rule",
-      path: ["recurrenceRule"],
-    }
+    { message: "Recurring events must have a recurrence rule", path: ["recurrenceRule"] }
   )
   .refine(
     (data) => {
-      // If has endTime, must have startTime
-      if (data.endTime && !data.startTime) {
-        return false
-      }
+      if (data.endTime && !data.startTime) return false
       return true
     },
-    {
-      message: "Cannot specify end time without start time",
-      path: ["endTime"],
-    }
+    { message: "Cannot specify end time without start time", path: ["endTime"] }
   )
   .refine(
     (data) => {
-      // If all-day (no startTime), cannot have endTime
-      if (!data.startTime && data.endTime) {
-        return false
-      }
+      if (!data.startTime && data.endTime) return false
       return true
     },
-    {
-      message: "All-day events cannot have an end time",
-      path: ["endTime"],
-    }
+    { message: "All-day events cannot have an end time", path: ["endTime"] }
   )
 
-// Update event schema (all fields optional)
-export const updateEventSchema = createEventSchema
-  .partial()
-  .omit({ reminders: true }) // Handle reminders separately
-  .refine(
-    (data) => {
-      // If setting isRecurring to true, must have recurrenceRule
-      if (data.isRecurring === true && !data.recurrenceRule) {
-        return false
-      }
-      return true
-    },
-    {
-      message: "Recurring events must have a recurrence rule",
-      path: ["recurrenceRule"],
-    }
-  )
+// Update event schema (all fields optional, no refinements to avoid .partial() issue)
+// Note: reminders are handled separately via dedicated API routes
+export const updateEventSchema = eventBaseSchema.partial()
 
 // Create exception schema (for modifying specific occurrences)
 export const createExceptionSchema = z.object({
