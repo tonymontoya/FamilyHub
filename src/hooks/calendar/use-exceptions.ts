@@ -29,8 +29,9 @@ export function useCreateException() {
         queryKey: calendarKeys.detail(variables.eventId),
       })
       
-      // Invalidate event lists (they may show modified occurrences)
+      // Invalidate event lists and occurrences (they may show modified occurrences)
       queryClient.invalidateQueries({ queryKey: calendarKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: calendarKeys.occurrences() })
       
       const action = exception.isCancelled ? "cancelled" : "modified"
       toast.success(`Occurrence ${action}`, {
@@ -62,8 +63,9 @@ export function useDeleteException() {
         queryKey: calendarKeys.detail(variables.eventId),
       })
       
-      // Invalidate event lists
+      // Invalidate event lists and occurrences
       queryClient.invalidateQueries({ queryKey: calendarKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: calendarKeys.occurrences() })
       
       toast.success("Exception removed", {
         description: "The occurrence has been restored to the original event",

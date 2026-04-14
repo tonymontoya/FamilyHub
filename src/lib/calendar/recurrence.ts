@@ -5,7 +5,7 @@
  * Uses the 'rrule' library (RFC 5545 compliant).
  */
 
-import { rrulestr, RRule } from "rrule"
+import { rrulestr } from "rrule"
 import type { CalendarEvent, EventException } from "@prisma/client"
 
 export interface EventOccurrence {
@@ -189,8 +189,12 @@ export function isValidOccurrence(
 export function getNextOccurrence(
   event: CalendarEvent,
   exceptions: EventException[],
-  afterDate: Date = new Date()
+  afterDate: Date = new Date(),
+  maxDepth: number = 10,
+  currentDepth: number = 0
 ): Date | null {
+  // Prevent infinite recursion if many consecutive occurrences are cancelled
+  if (currentDepth >= maxDepth) return null
   if (!event.isRecurring || !event.recurrenceRule) {
     return event.startDate > afterDate ? event.startDate : null
   }
@@ -212,8 +216,8 @@ export function getNextOccurrence(
     )
 
     if (exception?.isCancelled) {
-      // Get the next one recursively (with limit to prevent infinite loop)
-      return getNextOccurrence(event, exceptions, dates)
+      // Get the next one recursively (with depth limit to prevent infinite loop)
+      return getNextOccurrence(event, exceptions, dates, maxDepth, currentDepth + 1)
     }
 
     return dates

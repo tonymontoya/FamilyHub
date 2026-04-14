@@ -6,6 +6,7 @@
  */
 
 import { z } from "zod"
+import { rrulestr } from "rrule"
 
 // Custom validation helpers
 const nonEmptyString = (maxLength: number, fieldName: string) =>
@@ -159,12 +160,19 @@ const timeStringSchema = z
   .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time must be in HH:MM format")
   .optional()
 
-// RRULE validation (basic pattern for common rules)
+// RRULE validation using actual rrule parsing
 const rruleSchema = z
   .string()
-  .regex(
-    /^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)/,
-    "Recurrence rule must start with FREQ= (DAILY, WEEKLY, MONTHLY, or YEARLY)"
+  .refine(
+    (val) => {
+      try {
+        rrulestr(val)
+        return true
+      } catch {
+        return false
+      }
+    },
+    { message: "Invalid recurrence rule format" }
   )
   .optional()
 
