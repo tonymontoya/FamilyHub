@@ -16,6 +16,7 @@ import {
   withErrorHandling,
   successResponse,
   createdResponse,
+  Errors,
 } from "@/lib/errors"
 import { applyRateLimit } from "@/lib/rate-limit"
 import { startOfDay, endOfDay, parseISO } from "date-fns"
@@ -29,6 +30,8 @@ import type { EventType } from "@prisma/client"
  *   - end: End date (YYYY-MM-DD, required)
  *   - type: Filter by event type (optional)
  *   - assigneeId: Filter by assignee member ID (optional)
+ *   - limit: Max results (default 50, max 100)
+ *   - offset: Pagination offset (default 0)
  */
 export const GET = withErrorHandling(async (request) => {
   const { member } = await requireAuth()
@@ -42,6 +45,8 @@ export const GET = withErrorHandling(async (request) => {
   const endParam = searchParams.get("end")
   const type = searchParams.get("type")
   const assigneeId = searchParams.get("assigneeId")
+  const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100)
+  const offset = parseInt(searchParams.get("offset") || "0", 10)
 
   // Validate date range
   const dateRange = validateOrThrow(dateRangeSchema, {
@@ -83,40 +88,45 @@ export const GET = withErrorHandling(async (request) => {
     }),
   }
 
-  // Fetch events
-  const events = await prisma.calendarEvent.findMany({
-    where,
-    include: {
-      createdBy: {
-        select: {
-          id: true,
-          displayName: true,
-          avatarUrl: true,
+  // Fetch events with pagination
+  const [events, total] = await Promise.all([
+    prisma.calendarEvent.findMany({
+      where,
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            displayName: true,
+            avatarUrl: true,
+          },
         },
-      },
-      attendees: {
-        include: {
-          member: {
-            select: {
-              id: true,
-              displayName: true,
-              avatarUrl: true,
+        attendees: {
+          include: {
+            member: {
+              select: {
+                id: true,
+                displayName: true,
+                avatarUrl: true,
+              },
             },
           },
         },
-      },
-      exceptions: {
-        where: {
-          originalDate: {
-            gte: startDate,
-            lte: endDate,
+        exceptions: {
+          where: {
+            originalDate: {
+              gte: startDate,
+              lte: endDate,
+            },
           },
         },
+        reminders: true,
       },
-      reminders: true,
-    },
-    orderBy: { startDate: "asc" },
-  })
+      orderBy: { startDate: "asc" },
+      take: limit,
+      skip: offset,
+    }),
+    prisma.calendarEvent.count({ where }),
+  ])
 
   // Transform for response
   const response = {
@@ -166,6 +176,12 @@ export const GET = withErrorHandling(async (request) => {
       start: dateRange.start,
       end: dateRange.end,
     },
+    pagination: {
+      total,
+      limit,
+      offset,
+      hasMore: offset + events.length < total,
+    },
   }
 
   return successResponse(response, 200, rateLimitHeaders)
@@ -180,11 +196,28 @@ export const POST = withErrorHandling(async (request) => {
   const { member } = await requireAuth()
 
   // Rate limit check - use stricter limit for event creation
-  const rateLimitHeaders = applyRateLimit("listCreate", member.id)
+  const rateLimitHeaders = applyRateLimit("eventCreate", member.id)
 
   // Parse and validate body
   const body = await request.json()
   const data = validateOrThrow(createEventSchema, body)
+
+  // Validate assignees are family members (if provided)
+  if (data.assigneeIds.length > 0) {
+    const validMembers = await prisma.member.count({
+      where: {
+        id: { in: data.assigneeIds },
+        familyId: member.familyId,
+        deletedAt: null,
+      },
+    })
+    if (validMembers !== data.assigneeIds.length) {
+      throw Errors.validation([{
+        path: "assigneeIds",
+        message: "One or more assignees are not valid family members",
+      }])
+    }
+  }
 
   // Parse dates
   const startDate = parseISO(data.startDate)

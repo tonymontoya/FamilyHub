@@ -178,6 +178,11 @@ export const rateLimits = {
   itemUpdate: { limit: 120, window: 60 },  // 120 updates per minute (checkbox toggles)
   itemDelete: { limit: 30, window: 60 },   // 30 deletes per minute
   
+  // Calendar operations
+  eventCreate: { limit: 20, window: 3600 }, // 20 events per hour
+  eventUpdate: { limit: 30, window: 60 },   // 30 updates per minute
+  eventDelete: { limit: 10, window: 60 },   // 10 deletes per minute
+  
   // Read operations
   read: { limit: 60, window: 60 },         // 60 reads per minute
   
