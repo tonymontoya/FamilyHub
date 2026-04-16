@@ -6,6 +6,7 @@
  */
 
 import { z } from "zod"
+import { rrulestr } from "rrule"
 
 // Custom validation helpers
 const nonEmptyString = (maxLength: number, fieldName: string) =>
@@ -121,6 +122,143 @@ export type CreateItemInput = z.infer<typeof createItemSchema>
 export type UpdateItemInput = z.infer<typeof updateItemSchema>
 export type ToggleItemInput = z.infer<typeof toggleItemSchema>
 export type ReorderInput = z.infer<typeof reorderSchema>
+
+// ========== CALENDAR SCHEMAS ==========
+
+// Calendar enums
+export const eventTypeSchema = z.enum([
+  "EVENT",
+  "APPOINTMENT",
+  "ACTIVITY",
+  "BIRTHDAY",
+  "HOLIDAY",
+  "REMINDER",
+])
+
+export const reminderTypeSchema = z.enum(["BROWSER", "EMAIL", "PUSH"])
+
+// Hex color validation (#RGB or #RRGGBB)
+const hexColorSchema = z
+  .string()
+  .regex(/^#([A-Fa-f0-9]{3}){1,2}$/, "Color must be a valid hex code (e.g., #3b82f6)")
+  .optional()
+
+// IANA timezone validation (basic pattern)
+const timezoneSchema = z
+  .string()
+  .regex(/^[A-Za-z]+\/[A-Za-z_]+$/, "Invalid timezone format")
+  .default("UTC")
+
+// Date string validation (YYYY-MM-DD)
+const dateStringSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
+
+// Time string validation (HH:MM)
+const timeStringSchema = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time must be in HH:MM format")
+  .optional()
+
+// RRULE validation using actual rrule parsing
+const rruleSchema = z
+  .string()
+  .refine(
+    (val) => {
+      try {
+        rrulestr(val)
+        return true
+      } catch {
+        return false
+      }
+    },
+    { message: "Invalid recurrence rule format" }
+  )
+  .optional()
+
+// Reminder schema (nested in event creation)
+const reminderSchema = z.object({
+  minutesBefore: z
+    .number()
+    .int()
+    .min(1, "Reminder must be at least 1 minute before")
+    .max(10080, "Reminder cannot be more than 1 week before"), // 7 days
+  type: reminderTypeSchema.default("BROWSER"),
+})
+
+// Base event fields (without refinements)
+const eventBaseSchema = z.object({
+  title: nonEmptyString(200, "Title"),
+  description: optionalNonEmptyString(2000, "Description"),
+  startDate: dateStringSchema,
+  startTime: timeStringSchema,
+  endDate: dateStringSchema.optional(),
+  endTime: timeStringSchema,
+  timezone: timezoneSchema,
+  isRecurring: z.boolean().default(false),
+  recurrenceRule: rruleSchema,
+  recurrenceEnd: z.string().datetime().optional(),
+  assigneeIds: z.array(uuidSchema).default([]),
+  isFamilyWide: z.boolean().default(true),
+  type: eventTypeSchema.default("EVENT"),
+  location: optionalNonEmptyString(500, "Location"),
+  color: hexColorSchema,
+})
+
+// Create event schema with reminders and refinements
+export const createEventSchema = eventBaseSchema
+  .extend({
+    reminders: z.array(reminderSchema).default([]),
+  })
+  .refine(
+    (data) => {
+      if (data.isRecurring && !data.recurrenceRule) return false
+      return true
+    },
+    { message: "Recurring events must have a recurrence rule", path: ["recurrenceRule"] }
+  )
+  .refine(
+    (data) => {
+      if (data.endTime && !data.startTime) return false
+      return true
+    },
+    { message: "Cannot specify end time without start time", path: ["endTime"] }
+  )
+  .refine(
+    (data) => {
+      if (!data.startTime && data.endTime) return false
+      return true
+    },
+    { message: "All-day events cannot have an end time", path: ["endTime"] }
+  )
+
+// Update event schema (all fields optional, no refinements to avoid .partial() issue)
+// Note: reminders are handled separately via dedicated API routes
+export const updateEventSchema = eventBaseSchema.partial()
+
+// Create exception schema (for modifying specific occurrences)
+export const createExceptionSchema = z.object({
+  originalDate: dateStringSchema,
+  title: optionalNonEmptyString(200, "Title"),
+  description: optionalNonEmptyString(2000, "Description"),
+  startTime: timeStringSchema,
+  endTime: timeStringSchema,
+  location: optionalNonEmptyString(500, "Location"),
+  isCancelled: z.boolean().default(false),
+})
+
+// Date range query schema
+export const dateRangeSchema = z.object({
+  start: dateStringSchema,
+  end: dateStringSchema,
+})
+
+// ========== CALENDAR TYPES ==========
+
+export type CreateEventInput = z.infer<typeof createEventSchema>
+export type UpdateEventInput = z.infer<typeof updateEventSchema>
+export type CreateExceptionInput = z.infer<typeof createExceptionSchema>
+export type DateRangeInput = z.infer<typeof dateRangeSchema>
 
 // ========== VALIDATION HELPERS ==========
 

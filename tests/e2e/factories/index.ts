@@ -137,3 +137,129 @@ export async function createTestTodo(
     },
   })
 }
+
+// ===== Calendar Factories =====
+
+/**
+ * Create a test calendar event
+ */
+export async function createTestEvent(
+  familyId: string,
+  createdById: string,
+  title: string,
+  options: {
+    description?: string
+    startDate?: Date
+    startTime?: Date
+    endDate?: Date
+    endTime?: Date
+    timezone?: string
+    isRecurring?: boolean
+    recurrenceRule?: string
+    location?: string
+    type?: 'EVENT' | 'APPOINTMENT' | 'ACTIVITY' | 'BIRTHDAY' | 'HOLIDAY' | 'REMINDER'
+    color?: string
+    isFamilyWide?: boolean
+    assigneeIds?: string[]
+  } = {}
+) {
+  const now = new Date()
+  const startDate = options.startDate ?? now
+  
+  return prisma.calendarEvent.create({
+    data: {
+      familyId,
+      createdById,
+      title: `${TEST_PREFIX}${title}`,
+      description: options.description,
+      startDate,
+      startTime: options.startTime,
+      endDate: options.endDate,
+      endTime: options.endTime,
+      timezone: options.timezone ?? 'UTC',
+      isRecurring: options.isRecurring ?? false,
+      recurrenceRule: options.recurrenceRule,
+      location: options.location,
+      type: options.type ?? 'EVENT',
+      color: options.color,
+      isFamilyWide: options.isFamilyWide ?? true,
+      assigneeIds: options.assigneeIds ?? [],
+    },
+  })
+}
+
+/**
+ * Create a test event reminder
+ */
+export async function createTestReminder(
+  eventId: string,
+  options: {
+    minutesBefore?: number
+    type?: 'BROWSER' | 'EMAIL' | 'PUSH'
+    isSent?: boolean
+    isAcknowledged?: boolean
+  } = {}
+) {
+  const now = new Date()
+  
+  return prisma.eventReminder.create({
+    data: {
+      eventId,
+      minutesBefore: options.minutesBefore ?? 15,
+      type: options.type ?? 'BROWSER',
+      isSent: options.isSent ?? false,
+      isAcknowledged: options.isAcknowledged ?? false,
+      ...(options.isSent ? { sentAt: now } : {}),
+      ...(options.isAcknowledged ? { acknowledgedAt: now } : {}),
+    },
+  })
+}
+
+/**
+ * Create a test event exception
+ */
+export async function createTestException(
+  eventId: string,
+  originalDate: Date,
+  options: {
+    title?: string
+    description?: string
+    startTime?: Date
+    endTime?: Date
+    location?: string
+    isCancelled?: boolean
+  } = {}
+) {
+  return prisma.eventException.create({
+    data: {
+      eventId,
+      originalDate,
+      title: options.title,
+      description: options.description,
+      startTime: options.startTime,
+      endTime: options.endTime,
+      location: options.location,
+      isCancelled: options.isCancelled ?? false,
+    },
+  })
+}
+
+/**
+ * Clean up calendar test data
+ */
+export async function cleanupCalendarTestData() {
+  // Delete reminders first (foreign key constraint)
+  await prisma.eventReminder.deleteMany({
+    where: { event: { title: { startsWith: TEST_PREFIX } } },
+  })
+  
+  // Delete exceptions
+  await prisma.eventException.deleteMany({
+    where: { event: { title: { startsWith: TEST_PREFIX } } },
+  })
+  
+  // Delete events
+  await prisma.calendarEvent.deleteMany({
+    where: { title: { startsWith: TEST_PREFIX } },
+  })
+}

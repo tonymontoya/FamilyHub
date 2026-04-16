@@ -20,6 +20,7 @@ model Family {
   chores  Chore[]
   todos   Todo[]
   lists   List[]
+  events  CalendarEvent[]
 
   @@map("families")
 }
@@ -43,6 +44,8 @@ model Member {
   assignedChores      Chore[]
   createdLists        List[]             @relation("ListCreator")
   completedListItems  ListItem[]         @relation("ListItemCompleter")
+  createdEvents       CalendarEvent[]    @relation("EventCreator")
+  eventAttendees      EventAttendee[]
 
   @@index([familyId, role])
   @@map("members")
@@ -214,6 +217,136 @@ enum ListType {
   WISHLIST
   CUSTOM
 }
+
+// ========== CALENDAR MODULE ==========
+
+model CalendarEvent {
+  id              String           @id @default(uuid())
+  familyId        String           @map("family_id")
+  title           String           @db.VarChar(200)
+  description     String?          @db.VarChar(2000)
+  
+  // Timing - split date/time for all-day event support
+  startDate       DateTime         @map("start_date")
+  startTime       DateTime?        @map("start_time") // null = all-day
+  endDate         DateTime?        @map("end_date")   // for multi-day
+  endTime         DateTime?        @map("end_time")
+  timezone        String           @default("UTC")
+  
+  // Recurrence
+  isRecurring     Boolean          @default(false) @map("is_recurring")
+  recurrenceRule  String?          @map("recurrence_rule") // RRULE format
+  recurrenceEnd   DateTime?        @map("recurrence_end")
+  
+  // Assignment & visibility
+  createdById     String           @map("created_by_id")
+  assigneeIds     String[]         @map("assignee_ids")
+  isFamilyWide    Boolean          @default(true) @map("is_family_wide")
+  
+  // Event type & metadata
+  type            EventType        @default(EVENT)
+  location        String?          @db.VarChar(500)
+  color           String?          @db.VarChar(7)      // hex color
+  
+  // Soft delete & timestamps
+  deletedAt       DateTime?        @map("deleted_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  
+  // Relations
+  family          Family           @relation(fields: [familyId], references: [id])
+  createdBy       Member           @relation("EventCreator", fields: [createdById], references: [id])
+  attendees       EventAttendee[]
+  exceptions      EventException[]
+  reminders       EventReminder[]
+  
+  @@index([familyId, startDate])
+  @@index([familyId, deletedAt])
+  @@index([familyId, updatedAt])
+  @@index([isRecurring, recurrenceEnd])
+  @@map("calendar_events")
+}
+
+model EventAttendee {
+  id        String   @id @default(uuid())
+  eventId   String   @map("event_id")
+  memberId  String   @map("member_id")
+  status    AttendeeStatus @default(ACCEPTED)
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  event     CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member    Member        @relation(fields: [memberId], references: [id])
+  
+  @@unique([eventId, memberId])
+  @@index([memberId])
+  @@map("event_attendees")
+}
+
+model EventException {
+  id           String    @id @default(uuid())
+  eventId      String    @map("event_id")
+  originalDate DateTime  @map("original_date")
+  
+  // Modified fields (null = no change)
+  title       String?   @db.VarChar(200)
+  description String?   @db.VarChar(2000)
+  startTime   DateTime? @map("start_time")
+  endTime     DateTime? @map("end_time")
+  location    String?   @db.VarChar(500)
+  isCancelled Boolean   @default(false) @map("is_cancelled")
+  
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  
+  event       CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  @@unique([eventId, originalDate])
+  @@map("event_exceptions")
+}
+
+model EventReminder {
+  id             String         @id @default(uuid())
+  eventId        String         @map("event_id")
+  minutesBefore  Int            @map("minutes_before")
+  type           ReminderType   @default(BROWSER)
+  isSent         Boolean        @default(false) @map("is_sent")
+  sentAt         DateTime?      @map("sent_at")
+  isAcknowledged Boolean        @default(false) @map("is_acknowledged")
+  acknowledgedAt DateTime?      @map("acknowledged_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  
+  event          CalendarEvent  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  @@index([eventId, isSent])
+  @@index([isSent, sentAt])
+  @@index([isAcknowledged, isSent])
+  @@map("event_reminders")
+}
+
+// Calendar Enums
+enum EventType {
+  EVENT
+  APPOINTMENT
+  ACTIVITY
+  BIRTHDAY
+  HOLIDAY
+  REMINDER
+}
+
+enum AttendeeStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  TENTATIVE
+}
+
+enum ReminderType {
+  BROWSER
+  EMAIL
+  PUSH
+}
+
+// ========== AUTH MODELS (Better Auth) ==========
 
 model User {
   id              String    @id

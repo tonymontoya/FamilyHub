@@ -70,12 +70,13 @@ export function isParent(role: Role): boolean {
  */
 export async function requireModifyAccess(
   member: Member,
-  resourceCreatorId: string
+  resourceCreatorId: string,
+  resourceName: string = "Resource"
 ): Promise<void> {
   if (member.role === "PARENT") return
   
   if (member.id !== resourceCreatorId) {
-    throw Errors.notFound("List")
+    throw Errors.notFound(resourceName)
   }
 }
 
@@ -85,10 +86,11 @@ export async function requireModifyAccess(
  */
 export async function requireFamilyAccess(
   memberFamilyId: string,
-  targetFamilyId: string
+  targetFamilyId: string,
+  resourceName: string = "Resource"
 ): Promise<void> {
   if (memberFamilyId !== targetFamilyId) {
-    throw Errors.notFound("List")
+    throw Errors.notFound(resourceName)
   }
 }
 
@@ -149,4 +151,26 @@ export async function getItemWithAccess(
   }
 
   return item
+}
+
+/**
+ * Get calendar event with access verification (checks family access + not deleted)
+ * Returns event or throws 404 (not found / no access)
+ */
+export async function getEventWithAccess(
+  eventId: string,
+  member: Member
+) {
+  const event = await prisma.calendarEvent.findFirst({
+    where: {
+      id: eventId,
+      deletedAt: null,
+    },
+  })
+
+  if (!event || event.familyId !== member.familyId) {
+    throw Errors.notFound("Event")
+  }
+
+  return event
 }
