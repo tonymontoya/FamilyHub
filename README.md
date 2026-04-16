@@ -1,6 +1,6 @@
 # Family Hub
 
-A free, open-source family management platform for organizing chores, tasks, and family coordination—running entirely in your home.
+A free, open-source family management platform for organizing chores, tasks, calendar events, and family coordination—running entirely in your home.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
@@ -18,13 +18,24 @@ A free, open-source family management platform for organizing chores, tasks, and
 
 | Feature | Status | Description |
 |---------|--------|-------------|
-| 📝 **Chores** | ✅ MVP | Recurring tasks with points, parent approval workflow |
-| ✅ **Todos** | ✅ MVP | Simple task management for the whole family |
-| 🏆 **Rewards** | ✅ MVP | Points system with parent-managed rewards |
-| 📋 **Lists** | ✅ MVP | Shopping lists, packing lists, wishlists with drag-and-drop |
-| 📅 **Calendar** | 🚧 Planned | Family scheduling with external sync |
+| 📝 **Chores** | ✅ Available | Recurring tasks with points, parent approval workflow |
+| ✅ **Todos** | ✅ Available | Simple task management for the whole family |
+| 🏆 **Points & Rewards** | ✅ Available | Gamification with parent-managed rewards |
+| 📋 **Lists** | ✅ Available | Shopping lists, packing lists, wishlists with drag-and-drop |
+| 📅 **Calendar** | ✅ v0.2.0 | Family scheduling with events, reminders, and recurring patterns |
 | 🍽️ **Meal Planning** | 🚧 Planned | Recipe collection, meal planning, shopping lists |
-| 📊 **Dashboard** | ✅ MVP | Today's priorities at a glance |
+| 📊 **Dashboard** | ✅ Available | Today's priorities at a glance |
+
+### Calendar Features (v0.2.0)
+
+- 📆 **Monthly Calendar View** - Navigate between months, see events at a glance
+- 📝 **Event Management** - Create, edit, delete events with title, description, time, location
+- 🔄 **Recurring Events** - Weekly and daily patterns with RRULE support
+- ⚡ **Event Exceptions** - Modify or cancel single occurrences of recurring events
+- 🖱️ **Drag & Drop** - Reschedule events by dragging to new dates
+- 🔔 **Browser Reminders** - Get notified before events with customizable timing
+- 🔕 **Smart Notifications** - Acknowledged reminders don't reappear after refresh
+- 📱 **Responsive Design** - Works on desktop, tablet, and mobile
 
 ## 🚀 Quick Start
 
@@ -40,6 +51,9 @@ A free, open-source family management platform for organizing chores, tasks, and
 git clone https://github.com/tonymontoya/FamilyHub.git
 cd FamilyHub
 
+# Checkout latest release
+git checkout v0.2.0
+
 # Copy environment template
 cp .env.example .env
 # Edit .env with your settings
@@ -48,6 +62,20 @@ cp .env.example .env
 docker compose up -d
 
 # Access at http://localhost:3000
+```
+
+### Upgrade from v0.1.x
+
+```bash
+# Pull latest changes
+git fetch --tags
+git checkout v0.2.0
+
+# Apply database migrations
+docker compose exec app npx prisma migrate deploy
+
+# Restart services
+docker compose restart
 ```
 
 ### Development Setup
@@ -66,8 +94,10 @@ npm run dev
 
 ## 📖 Documentation
 
-- [🤝 Contributing](./CONTRIBUTING.md) - How to contribute
-- [🛡️ Security](./SECURITY.md) - Security policy and reporting
+- [📘 User Guide](./docs/USER_GUIDE.md) - How to use Family Hub
+- [🤝 Contributing](./docs/CONTRIBUTING.md) - How to contribute
+- [🛡️ Security](./docs/SECURITY.md) - Security policy and reporting
+- [📋 Changelog](./docs/CHANGELOG.md) - Version history
 
 ## 🏗️ Architecture
 
@@ -86,7 +116,7 @@ npm run dev
 
 **Tech Stack:**
 - **Frontend:** Next.js 16, TypeScript, Tailwind CSS, Radix UI, Shadcn UI
-- **Backend:** Next.js API Routes, tRPC (optional)
+- **Backend:** Next.js API Routes
 - **Database:** PostgreSQL 16, Prisma ORM
 - **Auth:** Better-Auth (session-based)
 - **Deployment:** Docker, Docker Compose
@@ -99,11 +129,11 @@ npm run dev
 - **Encryption:** HTTPS/TLS in transit, PostgreSQL encryption at rest
 - **Audit Logging:** Track who created/approved what
 
-See our [Security Policy](./SECURITY.md) for details.
+See our [Security Policy](./docs/SECURITY.md) for details.
 
 ## 🤝 Contributing
 
-We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
+We welcome contributions! See [CONTRIBUTING.md](./docs/CONTRIBUTING.md) for:
 - Development setup
 - Coding standards
 - Pull request process
@@ -111,12 +141,12 @@ We welcome contributions! See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
 
 ### Roadmap
 
-| Phase | Timeline | Focus |
-|-------|----------|-------|
-| v0.1 MVP | Now | Chores, Todos, Lists, Dashboard, Points |
-| v0.2 | Q2 2026 | Calendar, Natural language input |
-| v0.3 | Q3 2026 | Meal planning, Plans module, Home Assistant integration |
-| v1.0 | Q4 2026 | Native apps, advanced gamification, plugin system |
+| Phase | Version | Timeline | Focus |
+|-------|---------|----------|-------|
+| v0.1 MVP | ✅ | Released | Chores, Todos, Lists, Dashboard, Points |
+| v0.2 | ✅ | Released | **Calendar, Event Reminders** |
+| v0.3 | 🚧 | Q3 2026 | Meal planning, Plans module, Home Assistant integration |
+| v1.0 | 🚧 | Q4 2026 | Native apps, advanced gamification, plugin system |
 
 ## 📜 License
 

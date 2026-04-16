@@ -1,5 +1,4 @@
 import { test as setup, expect } from '@playwright/test'
-import { prisma } from '@/lib/prisma'
 
 /**
  * Auth Setup for E2E Tests
@@ -26,50 +25,6 @@ const TEST_CHILD = {
   username: `test-child-${timestamp}`,
   password: 'ChildPass123!',
 }
-
-/**
- * Setup: Clean up any existing test data first
- */
-setup('clean up test data', async () => {
-  // Clean up old test users (older than 1 hour)
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
-  
-  try {
-    // Find and delete old test families and users
-    const oldFamilies = await prisma.family.findMany({
-      where: {
-        name: { startsWith: 'Test Family' },
-        createdAt: { lt: oneHourAgo },
-      },
-      include: { members: true },
-    })
-    
-    for (const family of oldFamilies) {
-      for (const member of family.members) {
-        await prisma.member.deleteMany({ where: { id: member.id } })
-      }
-      await prisma.family.delete({ where: { id: family.id } })
-    }
-    
-    // Clean up old test users from auth
-    const oldUsers = await prisma.user.findMany({
-      where: {
-        email: { startsWith: 'test-parent-' },
-        createdAt: { lt: oneHourAgo },
-      },
-    })
-    
-    for (const user of oldUsers) {
-      await prisma.session.deleteMany({ where: { userId: user.id } })
-      await prisma.account.deleteMany({ where: { userId: user.id } })
-      await prisma.user.delete({ where: { id: user.id } })
-    }
-    
-    console.log('✓ Cleaned up old test data')
-  } catch (error) {
-    console.log('Cleanup warning (non-fatal):', error)
-  }
-})
 
 /**
  * Setup: Create parent account and authenticate
