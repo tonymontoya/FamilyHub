@@ -5,7 +5,7 @@ import { defineConfig, devices } from '@playwright/test'
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: '../tests/e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -31,7 +31,7 @@ export default defineConfig({
       use: { 
         ...devices['Desktop Chrome'],
         // Use pre-authenticated state
-        storageState: 'playwright/.auth/parent.json',
+        storageState: '../playwright/.auth/parent.json',
       },
       dependencies: ['setup'],
     },
@@ -39,7 +39,7 @@ export default defineConfig({
       name: 'firefox',
       use: { 
         ...devices['Desktop Firefox'],
-        storageState: 'playwright/.auth/parent.json',
+        storageState: '../playwright/.auth/parent.json',
       },
       dependencies: ['setup'],
     },
@@ -48,7 +48,7 @@ export default defineConfig({
       name: 'chromium-child',
       use: { 
         ...devices['Desktop Chrome'],
-        storageState: 'playwright/.auth/child.json',
+        storageState: '../playwright/.auth/child.json',
       },
       testMatch: /.*child.*\.spec\.ts/,
       dependencies: ['setup'],

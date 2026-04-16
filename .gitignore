@@ -84,3 +84,4 @@ playwright-report/
 test-results/
 plans/
 .savage-review*.md
+.kimi/

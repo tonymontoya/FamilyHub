@@ -36,7 +36,10 @@ export function useEvents(filters: EventFilters) {
 export function useEvent(id: string) {
   return useQuery<CalendarEvent>({
     queryKey: calendarKeys.detail(id),
-    queryFn: () => fetchEvent(id),
+    queryFn: async () => {
+      const data = await fetchEvent(id)
+      return data.event
+    },
     staleTime: 1000 * 60,
     enabled: !!id,
   })
@@ -49,15 +52,16 @@ export function useCreateEvent() {
 
   return useMutation({
     mutationFn: createEvent,
-    onSuccess: (newEvent) => {
-      // Invalidate event lists
+    onSuccess: (data) => {
+      // Invalidate event lists and occurrences
       queryClient.invalidateQueries({ queryKey: calendarKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: calendarKeys.occurrences() })
       
       // Set the new event in cache
-      queryClient.setQueryData(calendarKeys.detail(newEvent.id), newEvent)
+      queryClient.setQueryData(calendarKeys.detail(data.event.id), data.event)
       
       toast.success("Event created", {
-        description: `"${newEvent.title}" has been added to your calendar`,
+        description: `"${data.event.title}" has been added to your calendar`,
       })
     },
     onError: (error) => {
@@ -74,15 +78,16 @@ export function useUpdateEvent() {
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateEventInput }) =>
       updateEvent(id, input),
-    onSuccess: (updatedEvent, variables) => {
+    onSuccess: (data, variables) => {
       // Update cache for this event
-      queryClient.setQueryData(calendarKeys.detail(variables.id), updatedEvent)
+      queryClient.setQueryData(calendarKeys.detail(variables.id), data.event)
       
-      // Invalidate event lists
+      // Invalidate event lists and occurrences
       queryClient.invalidateQueries({ queryKey: calendarKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: calendarKeys.occurrences() })
       
       toast.success("Event updated", {
-        description: `"${updatedEvent.title}" has been updated`,
+        description: `"${data.event.title}" has been updated`,
       })
     },
     onError: (error) => {
@@ -102,6 +107,7 @@ export function useDeleteEvent() {
       // Invalidate all event queries
       queryClient.invalidateQueries({ queryKey: calendarKeys.lists() })
       queryClient.invalidateQueries({ queryKey: calendarKeys.details() })
+      queryClient.invalidateQueries({ queryKey: calendarKeys.occurrences() })
       
       toast.success("Event deleted", {
         description: "The event has been removed from your calendar",

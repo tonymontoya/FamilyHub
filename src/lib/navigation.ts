@@ -8,6 +8,7 @@ import {
   Trophy,
   UserCircle,
   ShieldCheck,
+  Calendar,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -31,6 +32,11 @@ export const navigationConfig: NavConfig = {
       href: "/dashboard",
       icon: LayoutDashboard,
       badge: "pendingApprovals",
+    },
+    {
+      label: "Calendar",
+      href: "/calendar",
+      icon: Calendar,
     },
     {
       label: "Chores",
@@ -77,6 +83,11 @@ export const navigationConfig: NavConfig = {
       label: "Dashboard",
       href: "/dashboard",
       icon: LayoutDashboard,
+    },
+    {
+      label: "Calendar",
+      href: "/calendar",
+      icon: Calendar,
     },
     {
       label: "My Chores",

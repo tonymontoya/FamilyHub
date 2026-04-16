@@ -2,15 +2,22 @@
  * React Query Hook for Event Occurrences
  * 
  * Expands recurring events into individual occurrences for display.
+ * Features:
+ * - Debounced filters to prevent excessive API calls
+ * - Memoized occurrence expansion with LRU caching
+ * - React Query integration for stale-while-revalidate
  */
 
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { calendarKeys } from "./keys"
 import { fetchEvents } from "./api"
-import { generateOccurrences } from "@/lib/calendar/recurrence"
-import type { EventOccurrence, OccurrenceFilters, CalendarEvent } from "./types"
+import { generateOccurrencesCached, invalidateEventCache, clearOccurrenceCache } from "@/lib/calendar/recurrence-cache"
+import type { EventOccurrence, OccurrenceFilters, CalendarEvent, EventException } from "./types"
 import { parseISO, startOfDay, endOfDay } from "date-fns"
 import type { CalendarEvent as PrismaCalendarEvent, EventException as PrismaEventException } from "@prisma/client"
+import { useDebounce } from "@/hooks/use-debounce"
+
+// ===== Type Converters =====
 
 /**
  * Convert API CalendarEvent (strings) to Prisma CalendarEvent (Dates)
@@ -38,13 +45,13 @@ function toPrismaEvent(event: CalendarEvent): PrismaCalendarEvent {
     deletedAt: null,
     createdAt: parseISO(event.createdAt),
     updatedAt: parseISO(event.updatedAt),
-  } as PrismaCalendarEvent
+  } as unknown as PrismaCalendarEvent
 }
 
 /**
  * Convert API EventException (strings) to Prisma EventException (Dates)
  */
-function toPrismaException(exception: import("./types").EventException): PrismaEventException {
+function toPrismaException(exception: EventException): PrismaEventException {
   return {
     id: exception.id,
     eventId: "", // Not needed for recurrence calculation
@@ -57,16 +64,33 @@ function toPrismaException(exception: import("./types").EventException): PrismaE
     isCancelled: exception.isCancelled,
     createdAt: new Date(), // Not used in recurrence calculation
     updatedAt: new Date(), // Not used in recurrence calculation
-  } as PrismaEventException
+  } as unknown as PrismaEventException
 }
 
+// ===== Main Hooks =====
+
+/**
+ * Core occurrence fetching hook (without debouncing)
+ * 
+ * Use this when you need immediate updates (e.g., from URL params)
+ * 
+ * @example
+ * ```typescript
+ * const { data: occurrences, isLoading } = useOccurrences({
+ *   start: '2024-01-01',
+ *   end: '2024-01-31',
+ *   type: 'EVENT'
+ * })
+ * ```
+ */
 export function useOccurrences(filters: OccurrenceFilters) {
+  const queryClient = useQueryClient()
+
   return useQuery<EventOccurrence[]>({
     queryKey: calendarKeys.occurrence(filters),
     queryFn: async () => {
       // Fetch events for the range
       // Note: 500 is a reasonable upper limit for events in a month view
-      // including recurring events. Adjust if users have very dense calendars.
       const response = await fetchEvents({
         ...filters,
         limit: 500,
@@ -80,14 +104,15 @@ export function useOccurrences(filters: OccurrenceFilters) {
       const occurrences: EventOccurrence[] = []
 
       for (const event of response.events) {
-        const eventOccurrences = generateOccurrences(
+        // Use cached expansion for each event
+        const eventOccurrences = generateOccurrencesCached(
           toPrismaEvent(event),
           event.exceptions.map(toPrismaException),
           rangeStart,
           rangeEnd
         )
 
-        // Convert to our Occurrence type
+        // Convert to our Occurrence type and apply filters
         for (const occ of eventOccurrences) {
           // Filter by type if specified
           if (filters.type && occ.type !== filters.type) continue
@@ -133,3 +158,60 @@ export function useOccurrences(filters: OccurrenceFilters) {
     enabled: !!filters.start && !!filters.end,
   })
 }
+
+/**
+ * Debounced occurrence hook for user-driven filter changes
+ * 
+ * Delays the API call by 300ms to prevent excessive requests
+ * when users are rapidly changing filters (e.g., typing in search,
+ * dragging date range sliders, etc.)
+ * 
+ * @example
+ * ```typescript
+ * // In your component with user input
+ * const [localFilters, setLocalFilters] = useState({ start, end, type })
+ * const { data: occurrences, isLoading } = useDebouncedOccurrences(localFilters, 300)
+ * 
+ * // User types rapidly - only one API call after 300ms of inactivity
+ * ```
+ */
+export function useDebouncedOccurrences(
+  filters: OccurrenceFilters,
+  delay: number = 300
+) {
+  const debouncedFilters = useDebounce(filters, delay)
+  return useOccurrences(debouncedFilters)
+}
+
+// ===== Cache Utilities =====
+
+/**
+ * Hook to manually invalidate occurrence caches
+ * 
+ * Call this when you know an event has changed and want to
+ * force fresh occurrence expansion on next render.
+ */
+export function useInvalidateOccurrenceCache() {
+  const queryClient = useQueryClient()
+
+  return {
+    /**
+     * Invalidate cache for a specific event
+     */
+    invalidateEvent: (eventId: string) => {
+      invalidateEventCache(eventId)
+      queryClient.invalidateQueries({ queryKey: calendarKeys.occurrences() })
+    },
+
+    /**
+     * Clear all occurrence caches
+     */
+    clearAll: () => {
+      clearOccurrenceCache()
+      queryClient.invalidateQueries({ queryKey: calendarKeys.occurrences() })
+    },
+  }
+}
+
+// Re-export cache functions
+export { invalidateEventCache, clearOccurrenceCache } from "@/lib/calendar/recurrence-cache"

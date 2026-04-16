@@ -9,6 +9,7 @@ import { MobileNav } from "./mobile-nav"
 import { NavUser } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { ReminderNotifications } from "@/components/reminder-notifications"
 
 interface AppShellProps {
   children: React.ReactNode
@@ -55,6 +56,9 @@ function AppShellContent({ children, user, initialNotificationCount }: AppShellP
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Global reminder notifications - runs on all pages */}
+      <ReminderNotifications />
+      
       {/* Skip to content link for accessibility */}
       <a
         href="#main-content"

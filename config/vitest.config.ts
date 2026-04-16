@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['./src/test/setup.ts'],
+    setupFiles: ['../src/test/setup.ts'],
     exclude: ['node_modules/', 'e2e/', 'tests/e2e/'],
     coverage: {
       reporter: ['text', 'json', 'html'],
@@ -23,7 +23,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(__dirname, '../src'),
     },
   },
 })

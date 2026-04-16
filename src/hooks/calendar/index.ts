@@ -16,6 +16,7 @@ export type {
   CreateEventInput,
   UpdateEventInput,
   CreateExceptionInput,
+  CreateReminderInput,
   EventFilters,
   OccurrenceFilters,
   PaginationInfo,
@@ -36,8 +37,20 @@ export {
 } from "./use-exceptions"
 
 export {
+  useCreateReminder,
+  useDeleteReminder,
+} from "./use-reminders"
+
+export {
   useOccurrences,
+  useDebouncedOccurrences,
+  useInvalidateOccurrenceCache,
 } from "./use-occurrences"
+
+export {
+  useActiveReminders,
+  useReminderNotifications,
+} from "./use-active-reminders"
 
 // Keys
 export { calendarKeys } from "./keys"
@@ -51,4 +64,9 @@ export {
   deleteEvent,
   createException,
   deleteException,
+  createReminder,
+  deleteReminder,
+  fetchActiveReminders,
+  acknowledgeReminder,
+  bulkAcknowledgeReminders,
 } from "./api"

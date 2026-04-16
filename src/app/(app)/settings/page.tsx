@@ -1,15 +1,28 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { Settings, ArrowLeft, Bell, Shield, User, Moon } from "lucide-react"
+import { Settings, ArrowLeft, Bell, Shield, User, Moon, Calendar } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { useEffect, useState } from "react"
+import { REMINDER_TIME_OPTIONS, requestNotificationPermission, getNotificationPermission } from "@/lib/notifications"
 
 export default function SettingsPage() {
   const router = useRouter()
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default")
+  const [defaultReminder, setDefaultReminder] = useState<number>(15)
+
+  useEffect(() => {
+    setNotificationPermission(getNotificationPermission())
+  }, [])
+
+  const handleRequestPermission = async () => {
+    const permission = await requestNotificationPermission()
+    setNotificationPermission(permission)
+  }
 
   return (
     <div className="p-4 md:p-8 space-y-6">
@@ -31,26 +44,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Coming Soon Notice */}
-      <Card className="border-dashed">
-        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <Settings className="h-12 w-12 text-muted-foreground mb-4" />
-          <h2 className="text-lg font-semibold mb-2">Settings Coming Soon</h2>
-          <p className="text-muted-foreground max-w-sm">
-            We&apos;re working on adding more customization options. 
-            Check back soon for notification preferences, theme settings, and more.
-          </p>
-          <Button 
-            className="mt-4" 
-            variant="outline"
-            onClick={() => router.push("/dashboard")}
-          >
-            Return to Dashboard
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Placeholder Settings Sections */}
+      {/* Settings Sections */}
       <div className="grid gap-6 md:grid-cols-2">
         {/* Notifications */}
         <Card>
@@ -66,22 +60,59 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="push-notifications">Push Notifications</Label>
+                <Label htmlFor="browser-notifications">Browser Notifications</Label>
                 <p className="text-sm text-muted-foreground">
-                  Receive alerts in your browser
+                  {notificationPermission === "granted" 
+                    ? "Notifications are enabled" 
+                    : "Get notified about calendar events"}
                 </p>
               </div>
-              <Switch id="push-notifications" disabled />
+              {notificationPermission !== "granted" ? (
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={handleRequestPermission}
+                  disabled={notificationPermission === "denied"}
+                >
+                  {notificationPermission === "denied" ? "Blocked" : "Enable"}
+                </Button>
+              ) : (
+                <span className="text-sm text-green-600">Enabled</span>
+              )}
             </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="email-notifications">Email Notifications</Label>
-                <p className="text-sm text-muted-foreground">
-                  Receive daily summaries
-                </p>
-              </div>
-              <Switch id="email-notifications" disabled />
+          </CardContent>
+        </Card>
+
+        {/* Calendar */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-base">Calendar</CardTitle>
+            </div>
+            <CardDescription>
+              Default reminder settings
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="default-reminder">Default Reminder Time</Label>
+              <p className="text-sm text-muted-foreground">
+                Automatically add this reminder to new events
+              </p>
+              <select
+                id="default-reminder"
+                value={defaultReminder}
+                onChange={(e) => setDefaultReminder(Number(e.target.value))}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value={0}>None</option>
+                {REMINDER_TIME_OPTIONS.filter(o => o.value > 0).map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </CardContent>
         </Card>
@@ -107,16 +138,6 @@ export default function SettingsPage() {
               </div>
               <Switch id="dark-mode" disabled />
             </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="compact-view">Compact View</Label>
-                <p className="text-sm text-muted-foreground">
-                  Show more items per page
-                </p>
-              </div>
-              <Switch id="compact-view" disabled />
-            </div>
           </CardContent>
         </Card>
 
@@ -128,36 +149,46 @@ export default function SettingsPage() {
               <CardTitle className="text-base">Account</CardTitle>
             </div>
             <CardDescription>
-              Manage your account details
+              Manage your account settings
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button variant="outline" className="w-full" disabled>
-              Change Display Name
-            </Button>
-            <Button variant="outline" className="w-full" disabled>
-              Update Avatar
-            </Button>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="profile-visibility">Profile Visibility</Label>
+                <p className="text-sm text-muted-foreground">
+                  Make your profile visible to family
+                </p>
+              </div>
+              <Switch id="profile-visibility" disabled />
+            </div>
           </CardContent>
         </Card>
 
-        {/* Privacy & Security */}
+        {/* Security */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-muted-foreground" />
-              <CardTitle className="text-base">Privacy & Security</CardTitle>
+              <CardTitle className="text-base">Security</CardTitle>
             </div>
             <CardDescription>
-              Manage your security settings
+              Manage your security preferences
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="two-factor">Two-Factor Authentication</Label>
+                <p className="text-sm text-muted-foreground">
+                  Add an extra layer of security
+                </p>
+              </div>
+              <Switch id="two-factor" disabled />
+            </div>
+            <Separator />
             <Button variant="outline" className="w-full" disabled>
               Change Password
-            </Button>
-            <Button variant="outline" className="w-full" disabled>
-              Two-Factor Authentication
             </Button>
           </CardContent>
         </Card>

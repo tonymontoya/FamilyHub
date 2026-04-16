@@ -150,6 +150,27 @@ export interface CreateExceptionInput {
   isCancelled?: boolean
 }
 
+// ===== Reminder Types =====
+
+export interface CreateReminderInput {
+  minutesBefore: number
+  type: "BROWSER" | "EMAIL" | "PUSH"
+}
+
+export interface ActiveReminder {
+  id: string
+  eventId: string
+  eventTitle: string
+  eventStartDate: string
+  eventStartTime: string | null
+  eventLocation: string | null
+  minutesBefore: number
+  type: "BROWSER" | "EMAIL" | "PUSH"
+  sentAt: string
+}
+
+export type { ReminderType } from "@prisma/client"
+
 // ===== Filter Types =====
 
 export interface EventFilters {
