@@ -111,16 +111,19 @@ export function CalendarHeader({
         </Button>
       </div>
 
-      {/* Right: View switcher - only month view implemented for now */}
+      {/* Right: View switcher */}
       <div className="flex items-center gap-1 rounded-lg border p-1">
-        <Button
-          variant="secondary"
-          size="sm"
-          className="capitalize font-medium"
-        >
-          Month
-        </Button>
-        {/* Week and Day views coming soon */}
+        {(["month", "week", "day"] as const).map((v) => (
+          <Button
+            key={v}
+            variant={view === v ? "secondary" : "ghost"}
+            size="sm"
+            className="capitalize font-medium"
+            onClick={() => onViewChange(v)}
+          >
+            {v}
+          </Button>
+        ))}
       </div>
     </div>
   )

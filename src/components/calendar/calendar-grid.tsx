@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils"
 import type { EventOccurrence } from "@/hooks/calendar"
 import { CalendarHeader, type CalendarView } from "./calendar-header"
 import { MonthView } from "./month-view"
+import { WeekView } from "./week-view"
+import { DayView } from "./day-view"
 import { EventCard } from "./event-card"
 
 interface CalendarGridProps {
@@ -136,15 +138,23 @@ export function CalendarGrid({
           )}
 
           {view === "week" && (
-            <div className="flex h-full items-center justify-center text-muted-foreground">
-              <p>Week view coming soon</p>
-            </div>
+            <WeekView
+              currentDate={currentDate}
+              occurrences={occurrences}
+              isLoading={isLoading}
+              onEventClick={onEventClick}
+              onDateClick={onDateClick}
+            />
           )}
 
           {view === "day" && (
-            <div className="flex h-full items-center justify-center text-muted-foreground">
-              <p>Day view coming soon</p>
-            </div>
+            <DayView
+              currentDate={currentDate}
+              occurrences={occurrences}
+              isLoading={isLoading}
+              onEventClick={onEventClick}
+              onDateClick={onDateClick}
+            />
           )}
         </div>
       </div>
