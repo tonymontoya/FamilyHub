@@ -86,7 +86,7 @@ function AppShellContent({ children, user, initialNotificationCount }: AppShellP
         id="main-content"
         className={`
           motion-safe:transition-all motion-safe:duration-200 motion-safe:ease-in-out
-          pt-16 pb-20 md:pb-0
+          pt-16 pb-24 md:pb-8
           md:ml-16 lg:ml-64
           min-h-screen
         `}

@@ -339,7 +339,7 @@ export default function CalendarPage() {
 
   return (
     <main className="flex-1 p-4 md:p-8">
-      <div className="mx-auto max-w-7xl h-[calc(100vh-8rem)]">
+      <div className="mx-auto max-w-7xl h-[calc(100vh-12rem)] md:h-[calc(100vh-8rem)]">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
@@ -355,7 +355,7 @@ export default function CalendarPage() {
         </div>
 
         {/* Calendar Grid */}
-        <Card className="h-[calc(100%-5rem)]" data-testid="calendar-card">
+        <Card className="h-[calc(100%-4rem)] md:h-[calc(100%-5rem)]" data-testid="calendar-card">
           <CardContent className="p-0 h-full" data-testid="calendar-grid-content">
             {isLoading ? (
               <div className="p-4 space-y-4">
