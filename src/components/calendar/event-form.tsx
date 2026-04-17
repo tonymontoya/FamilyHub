@@ -229,13 +229,13 @@ export function EventForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] p-0">
+      <DialogContent className="max-w-lg max-h-[90vh] p-0" data-testid="event-form-dialog">
         <DialogHeader className="px-6 pt-6">
-          <DialogTitle>{isEditing ? "Edit Event" : "New Event"}</DialogTitle>
+          <DialogTitle data-testid="event-form-title">{isEditing ? "Edit Event" : "New Event"}</DialogTitle>
         </DialogHeader>
 
         <ScrollArea className="max-h-[calc(90vh-180px)]">
-          <form id="event-form" onSubmit={handleSubmit(onFormSubmit)} className="space-y-4 px-6 py-4">
+          <form id="event-form" onSubmit={handleSubmit(onFormSubmit)} className="space-y-4 px-6 py-4" data-testid="event-form">
             {/* Title */}
             <div className="space-y-2">
               <Label htmlFor="title">Title *</Label>
@@ -244,6 +244,7 @@ export function EventForm({
                 placeholder="Event title"
                 {...register("title")}
                 className={cn(showError("title") && "border-destructive")}
+                data-testid="event-title-input"
               />
               {showError("title") && (
                 <p className="text-sm text-destructive">{showError("title")}</p>
@@ -543,14 +544,15 @@ export function EventForm({
               variant="destructive"
               onClick={onDelete}
               className="mr-auto"
+              data-testid="event-delete-button"
             >
               Delete
             </Button>
           )}
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} data-testid="event-cancel-button">
             Cancel
           </Button>
-          <Button type="submit" form="event-form" disabled={isSubmitting}>
+          <Button type="submit" form="event-form" disabled={isSubmitting} data-testid="event-submit-button">
             {isSubmitting ? "Saving..." : isEditing ? "Update" : "Create"}
           </Button>
         </DialogFooter>

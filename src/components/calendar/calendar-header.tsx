@@ -64,6 +64,7 @@ export function CalendarHeader({
             size="icon"
             onClick={handlePrevious}
             aria-label="Previous"
+            data-testid="calendar-previous"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -72,6 +73,7 @@ export function CalendarHeader({
             size="icon"
             onClick={handleNext}
             aria-label="Next"
+            data-testid="calendar-next"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -94,7 +96,7 @@ export function CalendarHeader({
           </PopoverContent>
         </Popover>
 
-        <Button variant="ghost" onClick={onToday}>
+        <Button variant="ghost" onClick={onToday} data-testid="calendar-today">
           Today
         </Button>
       </div>

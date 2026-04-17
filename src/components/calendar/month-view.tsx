@@ -44,11 +44,12 @@ export function MonthView({
   return (
     <div className="flex flex-col h-full">
       {/* Week day headers */}
-      <div className="grid grid-cols-7 border-b">
+      <div className="grid grid-cols-7 border-b" data-testid="calendar-day-headers">
         {weekDays.map((day) => (
           <div
             key={day}
             className="py-2 text-center text-sm font-medium text-muted-foreground"
+            data-testid={`day-header-${day.toLowerCase()}`}
           >
             {day}
           </div>
@@ -56,7 +57,7 @@ export function MonthView({
       </div>
 
       {/* Calendar grid */}
-      <div className="grid flex-1 grid-cols-7 auto-rows-fr">
+      <div className="grid flex-1 grid-cols-7 auto-rows-fr" data-testid="calendar-grid">
         {days.map((day, index) => {
           const dateKey = format(day, "yyyy-MM-dd")
           const dayOccurrences = occurrencesByDate.get(dateKey) || []

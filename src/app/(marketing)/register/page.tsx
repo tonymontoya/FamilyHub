@@ -15,21 +15,10 @@ import { Label } from "@/components/ui/label"
 import { authClient } from "@/lib/auth-client"
 
 const registerSchema = z.object({
-  familyName: z
-    .string()
-    .min(2, "Family name must be at least 2 characters")
-    .max(50, "Family name must be less than 50 characters"),
-  parentName: z
-    .string()
-    .min(2, "Name must be at least 2 characters")
-    .max(50, "Name must be less than 50 characters"),
-  email: z
-    .string()
-    .email("Please enter a valid email address"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .max(128, "Password must be less than 128 characters"),
+  familyName: z.string().min(2, "Family name must be at least 2 characters"),
+  parentName: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
 })
 
 type RegisterFormData = z.infer<typeof registerSchema>
@@ -47,10 +36,12 @@ export default function RegisterPage() {
   })
 
   const onSubmit = async (data: RegisterFormData) => {
+    console.log('[Register] onSubmit called:', { email: data.email })
     setIsLoading(true)
-
+    
     try {
       // Step 1: Sign up with Better-Auth
+      console.log('[Register] Calling authClient.signUp...')
       const { error: signUpError } = await authClient.signUp.email({
         email: data.email,
         password: data.password,
@@ -58,11 +49,16 @@ export default function RegisterPage() {
       })
 
       if (signUpError) {
+        console.error('[Register] Sign up error:', signUpError)
         toast.error("Unable to create account. Please try again.")
+        setIsLoading(false)
         return
       }
+      
+      console.log('[Register] Sign up successful')
 
-      // Step 2: Create family and link parent (via API route)
+      // Step 2: Create family and link parent
+      console.log('[Register] Calling setup-family...')
       const response = await fetch("/api/auth/setup-family", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -73,15 +69,19 @@ export default function RegisterPage() {
       })
 
       if (!response.ok) {
-        toast.error("Account created but family setup failed. Please contact support.")
+        const errorData = await response.json().catch(() => ({}))
+        console.error('[Register] Setup family failed:', errorData)
+        toast.error("Account created but family setup failed.")
+        setIsLoading(false)
         return
       }
 
+      console.log('[Register] Family setup successful')
       toast.success("Account created successfully!")
       router.push("/dashboard")
-    } catch {
+    } catch (error) {
+      console.error('[Register] Unexpected error:', error)
       toast.error("Something went wrong. Please try again.")
-    } finally {
       setIsLoading(false)
     }
   }
@@ -96,29 +96,35 @@ export default function RegisterPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {/* Family Section */}
+          <form 
+            onSubmit={(e) => {
+              console.log('[Register] Form submit event')
+              e.preventDefault()
+              e.stopPropagation()
+              handleSubmit(onSubmit)(e)
+            }}
+            className="space-y-4"
+          >
             <div className="space-y-2">
               <Label htmlFor="familyName">Family Name</Label>
               <Input
                 id="familyName"
                 placeholder="e.g., The Smith Family"
                 {...register("familyName")}
-                aria-invalid={errors.familyName ? "true" : "false"}
+                disabled={isLoading}
               />
               {errors.familyName && (
                 <p className="text-sm text-destructive">{errors.familyName.message}</p>
               )}
             </div>
 
-            {/* Parent Section */}
             <div className="space-y-2">
               <Label htmlFor="parentName">Your Name</Label>
               <Input
                 id="parentName"
                 placeholder="e.g., John Smith"
                 {...register("parentName")}
-                aria-invalid={errors.parentName ? "true" : "false"}
+                disabled={isLoading}
               />
               {errors.parentName && (
                 <p className="text-sm text-destructive">{errors.parentName.message}</p>
@@ -132,7 +138,7 @@ export default function RegisterPage() {
                 type="email"
                 placeholder="you@example.com"
                 {...register("email")}
-                aria-invalid={errors.email ? "true" : "false"}
+                disabled={isLoading}
               />
               {errors.email && (
                 <p className="text-sm text-destructive">{errors.email.message}</p>
@@ -146,7 +152,7 @@ export default function RegisterPage() {
                 type="password"
                 placeholder="••••••••"
                 {...register("password")}
-                aria-invalid={errors.password ? "true" : "false"}
+                disabled={isLoading}
               />
               {errors.password && (
                 <p className="text-sm text-destructive">{errors.password.message}</p>

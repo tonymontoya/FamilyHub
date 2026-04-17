@@ -348,15 +348,15 @@ export default function CalendarPage() {
               Manage family events and activities
             </p>
           </div>
-          <Button onClick={handleNewEvent}>
+          <Button onClick={handleNewEvent} data-testid="new-event-button">
             <Plus className="mr-2 h-4 w-4" />
             New Event
           </Button>
         </div>
 
         {/* Calendar Grid */}
-        <Card className="h-[calc(100%-5rem)]">
-          <CardContent className="p-0 h-full">
+        <Card className="h-[calc(100%-5rem)]" data-testid="calendar-card">
+          <CardContent className="p-0 h-full" data-testid="calendar-grid-content">
             {isLoading ? (
               <div className="p-4 space-y-4">
                 <Skeleton className="h-10 w-full" />

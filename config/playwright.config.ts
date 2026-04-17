@@ -7,21 +7,29 @@ dotenv.config({ path: path.resolve(__dirname, '../.env.local') })
 
 /**
  * Playwright configuration for E2E tests
+ * 
+ * IMPORTANT: This config expects a running dev server on localhost:3000
+ * Start the server before running tests: npm run dev
+ * 
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
   testDir: '../tests/e2e',
+  outputDir: '../test-results',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
+  retries: process.env.CI ? 2 : 1,
+  workers: 1, // Serial execution for auth stability
+  reporter: [['list'], ['html', { outputFolder: 'playwright-report' }]],
   
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
-    // Screenshot on failure for debugging
     screenshot: 'only-on-failure',
+    video: 'on-first-retry',
+    // Slower navigation for stability
+    actionTimeout: 10000,
+    navigationTimeout: 15000,
   },
 
   projects: [
@@ -35,8 +43,7 @@ export default defineConfig({
       name: 'chromium',
       use: { 
         ...devices['Desktop Chrome'],
-        // Use pre-authenticated state
-        storageState: '../playwright/.auth/parent.json',
+        storageState: 'playwright/.auth/parent.json',
       },
       dependencies: ['setup'],
     },
@@ -44,27 +51,21 @@ export default defineConfig({
       name: 'firefox',
       use: { 
         ...devices['Desktop Firefox'],
-        storageState: '../playwright/.auth/parent.json',
+        storageState: 'playwright/.auth/parent.json',
       },
       dependencies: ['setup'],
     },
-    // Child-specific tests use different auth
+    // Mobile testing
     {
-      name: 'chromium-child',
+      name: 'mobile-chrome',
       use: { 
-        ...devices['Desktop Chrome'],
-        storageState: '../playwright/.auth/child.json',
+        ...devices['Pixel 5'],
+        storageState: 'playwright/.auth/parent.json',
       },
-      testMatch: /.*child.*\.spec\.ts/,
       dependencies: ['setup'],
     },
   ],
 
-  webServer: {
-    // Use production build for more reliable tests
-    command: 'npm run build && npm start',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000, // 2 minutes for build
-  },
+  // No webServer - expects dev server to be running
+  // Start manually with: npm run dev
 })

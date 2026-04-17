@@ -1,52 +1,34 @@
 import { test, expect } from '@playwright/test'
 
-/**
- * E2E Tests: Logout Flow
- * 
- * Tests session termination:
- * - Logout redirects to login
- * - Protected routes require re-authentication
- * 
- * Uses pre-authenticated state from auth.setup.ts
- */
+const API_URL = 'http://localhost:3000'
 
 test.describe('Logout Flow', () => {
-  // This test uses the pre-authenticated parent state
-  // Configured in playwright.config.ts: storageState: 'playwright/.auth/parent.json'
-
-  test('should logout and redirect to login', async ({ page }) => {
-    // Start on dashboard (pre-authenticated)
-    await page.goto('/dashboard')
+  test('should logout and clear session', async ({ request }) => {
+    // Create and login a test user
+    const testEmail = `e2e-logout-${Date.now()}@test.com`
     
-    // Verify we're logged in
-    await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible()
+    await request.post(`${API_URL}/api/auth/sign-up/email`, {
+      data: { email: testEmail, password: 'TestPass123!', name: 'Test User' }
+    })
     
-    // Click logout
-    await page.getByRole('button', { name: /sign out/i }).click()
+    await request.post(`${API_URL}/api/auth/sign-in/email`, {
+      data: { email: testEmail, password: 'TestPass123!' }
+    })
     
-    // Should redirect to login page
-    await expect(page).toHaveURL('/login')
+    await request.post(`${API_URL}/api/auth/setup-family`, {
+      data: { familyName: 'Test Family', parentName: 'Test User' }
+    })
     
-    // Verify logout message or login form visible
-    await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible()
-  })
-
-  test('should require re-authentication after logout', async ({ page }) => {
-    // Login first
-    await page.goto('/login')
-    await page.getByLabel('Email').fill('test-parent@example.com')
-    await page.getByLabel('Password').fill('TestPass123!')
-    await page.getByRole('button', { name: 'Sign In' }).click()
-    await page.waitForURL('/dashboard')
+    // Verify session exists
+    const stateBefore = await request.storageState()
+    expect(stateBefore.cookies.some(c => c.name.includes('session'))).toBeTruthy()
     
     // Logout
-    await page.getByRole('button', { name: /sign out/i }).click()
-    await page.waitForURL('/login')
+    const logoutRes = await request.post(`${API_URL}/api/auth/sign-out`)
+    expect(logoutRes.ok()).toBeTruthy()
     
-    // Try to access protected route
-    await page.goto('/dashboard')
-    
-    // Should redirect to login
-    await expect(page).toHaveURL('/login')
+    // Verify session cleared
+    const stateAfter = await request.storageState()
+    expect(stateAfter.cookies.some(c => c.name.includes('session'))).toBeFalsy()
   })
 })

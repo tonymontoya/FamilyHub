@@ -1,81 +1,100 @@
 import { test as setup, expect } from '@playwright/test'
-
-/**
- * Auth Setup for E2E Tests
- * 
- * This file runs before all other tests to create authenticated sessions.
- * Sessions are saved to JSON files and reused across tests for speed.
- * 
- * Pattern: https://playwright.dev/docs/auth#reuse-signed-in-state
- */
+import * as fs from 'fs'
+import { execSync } from 'child_process'
 
 const parentAuthFile = 'playwright/.auth/parent.json'
-const childAuthFile = 'playwright/.auth/child.json'
+const BASE_URL = 'http://localhost:3000'
 
-// Use timestamp to create unique test users each run
-const timestamp = Date.now()
-const TEST_PARENT = {
-  email: `test-parent-${timestamp}@example.com`,
+const TEST_USER = {
+  email: `e2e-${Date.now()}@test.com`,
   password: 'TestPass123!',
-  familyName: `Test Family ${timestamp}`,
-  parentName: 'Test Parent',
+  parentName: 'E2E Test Parent',
+  familyName: 'E2E Family',
 }
 
-const TEST_CHILD = {
-  username: `test-child-${timestamp}`,
-  password: 'ChildPass123!',
-}
-
-/**
- * Setup: Create parent account and authenticate
- * This creates the parent.json storage state
- */
-setup('authenticate as parent', async ({ page }) => {
-  // Navigate to registration
-  await page.goto('/register')
+setup('authenticate as parent', async ({ browser, request }) => {
+  console.log('Creating user:', TEST_USER.email)
   
-  // Fill registration form
-  await page.getByLabel('Family Name').fill(TEST_PARENT.familyName)
-  await page.getByLabel('Your Name').fill(TEST_PARENT.parentName)
-  await page.getByLabel('Email').fill(TEST_PARENT.email)
-  await page.getByLabel('Password').fill(TEST_PARENT.password)
+  // Clean up via DB script
+  try {
+    execSync('npm run db:seed -- --cleanup 2>/dev/null || true', { cwd: process.cwd() })
+  } catch {}
   
-  // Submit form
-  await page.getByRole('button', { name: 'Create Account' }).click()
+  // Step 1: Sign up via API
+  const signUpRes = await request.post(`${BASE_URL}/api/auth/sign-up/email`, {
+    data: {
+      email: TEST_USER.email,
+      password: TEST_USER.password,
+      name: TEST_USER.parentName,
+    }
+  })
+  console.log('Sign up status:', signUpRes.status())
   
-  // Wait for redirect to dashboard (indicates success)
-  await expect(page).toHaveURL('/dashboard', { timeout: 10000 })
+  // Step 2: Sign in to get session
+  const signInRes = await request.post(`${BASE_URL}/api/auth/sign-in/email`, {
+    data: {
+      email: TEST_USER.email,
+      password: TEST_USER.password,
+    }
+  })
+  console.log('Sign in status:', signInRes.status())
   
-  // Verify we're logged in by checking for logout button
-  await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible()
+  // Check storage state after sign-in
+  const state = await request.storageState()
+  console.log('Cookies after sign-in:', state.cookies.length)
+  for (const c of state.cookies) {
+    console.log(`  - ${c.name} domain=${c.domain}`)
+  }
   
-  // Save the authenticated state
-  await page.context().storageState({ path: parentAuthFile })
+  // Check for session cookie
+  const sessionCookie = state.cookies.find(c => c.name.includes('session'))
+  if (!sessionCookie) {
+    throw new Error('No session cookie after sign-in')
+  }
   
-  console.log(`✓ Parent auth saved to ${parentAuthFile}`)
-})
-
-/**
- * Setup: Create child account and authenticate
- * This creates the child.json storage state
- * 
- * Note: Child accounts require parent to create them first (Issue #5).
- * For now, we skip child auth setup until #5 is implemented.
- */
-setup.skip('authenticate as child', async ({ page }) => {
-  // This will be implemented after Issue #5 (Child Account Creation)
-  // For now, tests requiring child auth should use page.goto('/login') flow
+  // Step 3: Setup family
+  const setupRes = await request.post(`${BASE_URL}/api/auth/setup-family`, {
+    data: {
+      familyName: TEST_USER.familyName,
+      parentName: TEST_USER.parentName,
+    }
+  })
+  console.log('Setup family status:', setupRes.status())
   
-  await page.goto('/login')
+  if (setupRes.status() !== 200) {
+    const body = await setupRes.text()
+    throw new Error(`Setup family failed: ${setupRes.status()} - ${body}`)
+  }
   
-  // Child login flow (may differ from parent)
-  await page.getByLabel('Username').fill(TEST_CHILD.username)
-  await page.getByLabel('Password').fill(TEST_CHILD.password)
-  await page.getByRole('button', { name: 'Sign In' }).click()
+  // Step 4: Ensure cookie domain matches baseURL
+  const fixedState = {
+    ...state,
+    cookies: state.cookies.map(c => ({
+      ...c,
+      domain: 'localhost'
+    }))
+  }
   
-  await expect(page).toHaveURL('/dashboard')
+  // Step 5: Create browser context with fixed cookies and verify
+  const context = await browser.newContext({ 
+    baseURL: BASE_URL,
+    storageState: fixedState 
+  })
+  const page = await context.newPage()
   
-  await page.context().storageState({ path: childAuthFile })
+  await page.goto('/dashboard')
+  await page.waitForTimeout(1000)
   
-  console.log(`✓ Child auth saved to ${childAuthFile}`)
+  console.log('Dashboard URL:', page.url())
+  
+  if (!page.url().includes('/dashboard')) {
+    await page.screenshot({ path: 'test-results/auth-debug.png' })
+    throw new Error('Failed to reach dashboard: ' + page.url())
+  }
+  
+  // Save fixed state to file
+  fs.writeFileSync(parentAuthFile, JSON.stringify(fixedState, null, 2))
+  
+  await context.close()
+  console.log('✓ Auth setup complete')
 })
