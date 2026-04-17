@@ -160,6 +160,12 @@ export function useDashboard(
     }
   }, [])
 
+  // Use ref to track if we have data without causing dependency changes
+  const hasDataRef = useRef(!!data)
+  useEffect(() => {
+    hasDataRef.current = !!data
+  }, [data])
+
   /**
    * Main fetch function
    */
@@ -177,7 +183,7 @@ export function useDashboard(
         // Show loading state (refreshing for manual, loading for initial)
         if (isManual) {
           setIsRefreshing(true)
-        } else if (!data) {
+        } else if (!hasDataRef.current) {
           setIsLoading(true)
         }
 
@@ -226,7 +232,8 @@ export function useDashboard(
         setIsRefreshing(false)
       }
     },
-    [enabled, data]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [enabled]
   )
 
   /**

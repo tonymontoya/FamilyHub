@@ -91,11 +91,14 @@ export function useOccurrences(filters: OccurrenceFilters) {
     queryFn: async () => {
       // Fetch events for the range
       // Note: 500 is a reasonable upper limit for events in a month view
-      const response = await fetchEvents({
+      const apiResponse = await fetchEvents({
         ...filters,
         limit: 500,
         offset: 0,
       })
+      
+      // Handle API wrapper format: { success: true, data: { events: [...] } }
+      const response = 'data' in apiResponse ? apiResponse.data : apiResponse
 
       const rangeStart = startOfDay(parseISO(filters.start))
       const rangeEnd = endOfDay(parseISO(filters.end))

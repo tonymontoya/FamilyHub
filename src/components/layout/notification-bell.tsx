@@ -47,7 +47,7 @@ export function NotificationBell({ initialCount }: NotificationBellProps) {
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      <DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
           size="icon"
