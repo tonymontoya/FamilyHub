@@ -7,22 +7,26 @@ test.describe('Parent Registration', () => {
   test('should allow registration via API and access dashboard', async ({ page, request }) => {
     const testEmail = generateEmail()
     const testPassword = 'SecurePass123!'
+    const originHeader = { Origin: API_URL }
     
     // Step 1: Register via API
     const signUpRes = await request.post(`${API_URL}/api/auth/sign-up/email`, {
-      data: { email: testEmail, password: testPassword, name: 'Test Parent' }
+      data: { email: testEmail, password: testPassword, name: 'Test Parent' },
+      headers: originHeader
     })
     expect(signUpRes.ok(), `Sign up failed: ${await signUpRes.text()}`).toBeTruthy()
     
     // Step 2: Sign in
     const signInRes = await request.post(`${API_URL}/api/auth/sign-in/email`, {
-      data: { email: testEmail, password: testPassword }
+      data: { email: testEmail, password: testPassword },
+      headers: originHeader
     })
     expect(signInRes.ok()).toBeTruthy()
     
     // Step 3: Setup family
     const setupRes = await request.post(`${API_URL}/api/auth/setup-family`, {
-      data: { familyName: 'Test Family', parentName: 'Test Parent' }
+      data: { familyName: 'Test Family', parentName: 'Test Parent' },
+      headers: originHeader
     })
     expect(setupRes.ok()).toBeTruthy()
     
@@ -36,16 +40,19 @@ test.describe('Parent Registration', () => {
 
   test('should prevent duplicate email registration', async ({ request }) => {
     const testEmail = generateEmail()
+    const originHeader = { Origin: API_URL }
     
     // First registration
     const firstRes = await request.post(`${API_URL}/api/auth/sign-up/email`, {
-      data: { email: testEmail, password: 'Pass123!', name: 'First User' }
+      data: { email: testEmail, password: 'Pass123!', name: 'First User' },
+      headers: originHeader
     })
     expect(firstRes.ok()).toBeTruthy()
     
     // Second should fail
     const secondRes = await request.post(`${API_URL}/api/auth/sign-up/email`, {
-      data: { email: testEmail, password: 'Pass123!', name: 'Second User' }
+      data: { email: testEmail, password: 'Pass123!', name: 'Second User' },
+      headers: originHeader
     })
     expect(secondRes.ok()).toBeFalsy()
   })

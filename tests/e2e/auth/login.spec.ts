@@ -6,16 +6,19 @@ test.describe('Login Flow', () => {
   test('should login with valid credentials via API', async ({ request }) => {
     const testEmail = `e2e-login-${Date.now()}@test.com`
     const testPassword = 'TestPass123!'
+    const originHeader = { Origin: API_URL }
     
     // Step 1: Register
     const signUpRes = await request.post(`${API_URL}/api/auth/sign-up/email`, {
-      data: { email: testEmail, password: testPassword, name: 'Test User' }
+      data: { email: testEmail, password: testPassword, name: 'Test User' },
+      headers: originHeader
     })
     expect(signUpRes.ok()).toBeTruthy()
     
     // Step 2: Sign in
     const signInRes = await request.post(`${API_URL}/api/auth/sign-in/email`, {
-      data: { email: testEmail, password: testPassword }
+      data: { email: testEmail, password: testPassword },
+      headers: originHeader
     })
     expect(signInRes.ok()).toBeTruthy()
     
