@@ -44,13 +44,19 @@ export function CalendarHeader({
     }
   }
 
-  const getTitle = () => {
+  const getTitle = (short = false) => {
     if (view === "month") {
-      return format(currentDate, "MMMM yyyy")
+      return short 
+        ? format(currentDate, "MMM yyyy") 
+        : format(currentDate, "MMMM yyyy")
     } else if (view === "week") {
-      return `Week of ${format(currentDate, "MMM d, yyyy")}`
+      return short
+        ? `Week of ${format(currentDate, "MMM d")}`
+        : `Week of ${format(currentDate, "MMM d, yyyy")}`
     } else {
-      return format(currentDate, "EEEE, MMMM d, yyyy")
+      return short
+        ? format(currentDate, "EEE, MMM d")
+        : format(currentDate, "EEEE, MMMM d, yyyy")
     }
   }
 
@@ -81,10 +87,13 @@ export function CalendarHeader({
 
         <Popover>
           <PopoverTrigger
-            className="inline-flex items-center justify-start gap-2 min-w-[140px] rounded-md border border-input bg-background px-3 py-2 text-sm font-normal shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+            className="inline-flex items-center justify-start gap-2 min-w-[100px] sm:min-w-[140px] rounded-md border border-input bg-background px-2 sm:px-3 py-2 text-sm font-normal shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
           >
-            <CalendarIcon className="h-4 w-4" />
-            {getTitle()}
+            <CalendarIcon className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">
+              <span className="sm:hidden">{getTitle(true)}</span>
+              <span className="hidden sm:inline">{getTitle(false)}</span>
+            </span>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
             <Calendar
@@ -96,8 +105,9 @@ export function CalendarHeader({
           </PopoverContent>
         </Popover>
 
-        <Button variant="ghost" onClick={onToday} data-testid="calendar-today">
-          Today
+        <Button variant="ghost" onClick={onToday} data-testid="calendar-today" className="px-2 sm:px-4">
+          <span className="sm:hidden">T</span>
+          <span className="hidden sm:inline">Today</span>
         </Button>
       </div>
 

@@ -89,7 +89,8 @@ export function EventCard({ occurrence, onClick, compact = false }: EventCardPro
         } : {}),
       }}
       className={cn(
-        "w-full rounded border px-2 py-1 text-left text-xs transition-all",
+        "w-full rounded border px-2 py-1 sm:py-1 text-left text-xs transition-all",
+        "min-h-[28px] sm:min-h-0",
         "hover:shadow-sm hover:brightness-95 dark:hover:brightness-110",
         "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1",
         colorClass,

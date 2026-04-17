@@ -16,6 +16,7 @@ interface MonthViewProps {
 }
 
 const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+const weekDaysShort = ["S", "M", "T", "W", "T", "F", "S"]
 
 export function MonthView({
   currentDate,
@@ -43,13 +44,22 @@ export function MonthView({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Week day headers */}
+      {/* Week day headers - short names on mobile */}
       <div className="grid grid-cols-7 border-b" data-testid="calendar-day-headers">
-        {weekDays.map((day) => (
+        {weekDays.map((day, i) => (
           <div
             key={day}
-            className="py-2 text-center text-sm font-medium text-muted-foreground"
+            className="py-2 text-center text-sm font-medium text-muted-foreground hidden sm:block"
             data-testid={`day-header-${day.toLowerCase()}`}
+          >
+            {day}
+          </div>
+        ))}
+        {weekDaysShort.map((day, i) => (
+          <div
+            key={`short-${day}-${i}`}
+            className="py-1 sm:py-2 text-center text-xs sm:text-sm font-medium text-muted-foreground sm:hidden"
+            data-testid={`day-header-${weekDays[i].toLowerCase()}`}
           >
             {day}
           </div>
@@ -118,7 +128,7 @@ function DayCell({
     <div
       ref={setNodeRef}
       className={cn(
-        "min-h-[100px] border-b border-r p-1 transition-colors",
+        "min-h-[80px] sm:min-h-[100px] border-b border-r p-0.5 sm:p-1 transition-colors",
         !isCurrentMonth && "bg-muted/30 text-muted-foreground",
         isToday && "bg-primary/5",
         isSelected && "ring-2 ring-primary ring-inset",
@@ -126,11 +136,12 @@ function DayCell({
         "flex flex-col gap-1"
       )}
     >
-      {/* Date header */}
+      {/* Date header - larger touch target on mobile */}
       <button
         onClick={() => onDateClick?.(date)}
         className={cn(
-          "flex h-7 w-7 items-center justify-center rounded-full text-sm",
+          "flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded-full text-sm",
+          "min-h-[32px] min-w-[32px] sm:min-h-0 sm:min-w-0",
           "hover:bg-accent transition-colors",
           isToday && "bg-primary text-primary-foreground font-semibold hover:bg-primary/90",
           !isCurrentMonth && "text-muted-foreground"

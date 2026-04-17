@@ -30,10 +30,10 @@ test.describe('Calendar Visual & Accessibility', () => {
     // New Event button should be visible
     await expect(page.getByRole('button', { name: 'New Event' })).toBeVisible()
     
-    // Should show day headers
+    // Should show day headers (desktop version visible on desktop viewport)
     const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     for (const day of dayHeaders) {
-      await expect(page.locator(`[data-testid="day-header-${day.toLowerCase()}"]`)).toBeVisible()
+      await expect(page.locator(`[data-testid="day-header-${day.toLowerCase()}"]`).first()).toBeVisible()
     }
   })
 
