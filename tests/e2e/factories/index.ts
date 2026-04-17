@@ -248,8 +248,15 @@ export async function createTestException(
  * Clean up calendar test data
  */
 export async function cleanupCalendarTestData() {
-  // Delete reminders first (foreign key constraint)
+  // Delete in order of dependencies (children first)
+  
+  // Delete reminders
   await prisma.eventReminder.deleteMany({
+    where: { event: { title: { startsWith: TEST_PREFIX } } },
+  })
+  
+  // Delete attendees
+  await prisma.eventAttendee.deleteMany({
     where: { event: { title: { startsWith: TEST_PREFIX } } },
   })
   
