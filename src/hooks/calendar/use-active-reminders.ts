@@ -271,6 +271,36 @@ export function useActiveReminders(options: UseActiveRemindersOptions = {}) {
  * })
  * ```
  */
+/**
+ * Check if current time is within quiet hours
+ */
+function isQuietHours(): boolean {
+  if (typeof window === "undefined") return false
+  
+  const quietHoursEnabled = localStorage.getItem("quiet-hours-enabled") === "true"
+  if (!quietHoursEnabled) return false
+  
+  const start = localStorage.getItem("quiet-hours-start") || "22:00"
+  const end = localStorage.getItem("quiet-hours-end") || "08:00"
+  
+  const now = new Date()
+  const currentTime = now.getHours() * 60 + now.getMinutes()
+  
+  const [startHour, startMin] = start.split(":").map(Number)
+  const [endHour, endMin] = end.split(":").map(Number)
+  
+  const startMinutes = startHour * 60 + startMin
+  const endMinutes = endHour * 60 + endMin
+  
+  if (startMinutes < endMinutes) {
+    // Same day (e.g., 09:00 to 17:00)
+    return currentTime >= startMinutes && currentTime <= endMinutes
+  } else {
+    // Overnight (e.g., 22:00 to 08:00)
+    return currentTime >= startMinutes || currentTime <= endMinutes
+  }
+}
+
 export function useReminderNotifications(options: {
   pollInterval?: number
   enabled?: boolean
@@ -289,17 +319,31 @@ export function useReminderNotifications(options: {
   
   // Track API errors for user feedback
   const [hasError, setHasError] = useState(false)
+  
+  // Track quiet hours state
+  const [inQuietHours, setInQuietHours] = useState(false)
 
-  // Check notification permission on mount
+  // Check notification permission and quiet hours on mount
   useEffect(() => {
-    if (typeof window === "undefined" || !("Notification" in window)) return
-    setNotificationPermission(Notification.permission)
+    if (typeof window === "undefined") return
+    if ("Notification" in window) {
+      setNotificationPermission(Notification.permission)
+    }
+    setInQuietHours(isQuietHours())
+    
+    // Check quiet hours every minute
+    const interval = setInterval(() => {
+      setInQuietHours(isQuietHours())
+    }, 60000)
+    
+    return () => clearInterval(interval)
   }, [])
 
   // Show browser notification
   const showBrowserNotification = useCallback((reminder: ActiveReminder) => {
     if (typeof window === "undefined" || !("Notification" in window)) return
     if (Notification.permission !== "granted") return
+    if (isQuietHours()) return // Skip during quiet hours
 
     const title = "Event Reminder"
     const body = formatReminderMessage(reminder.eventTitle, reminder.minutesBefore)
@@ -417,6 +461,7 @@ export function useReminderNotifications(options: {
     hasReminders: reminders.length > 0,
     isVisible,
     notificationPermission,
+    inQuietHours,
     acknowledge,
     acknowledgeAll,
     snooze,

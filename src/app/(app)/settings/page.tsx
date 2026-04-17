@@ -14,10 +14,48 @@ export default function SettingsPage() {
   const router = useRouter()
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default")
   const [defaultReminder, setDefaultReminder] = useState<number>(15)
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    if (typeof window === "undefined") return false
+    return localStorage.getItem("reminder-sound-enabled") === "true"
+  })
+  const [quietHoursStart, setQuietHoursStart] = useState(() => {
+    if (typeof window === "undefined") return "22:00"
+    return localStorage.getItem("quiet-hours-start") || "22:00"
+  })
+  const [quietHoursEnd, setQuietHoursEnd] = useState(() => {
+    if (typeof window === "undefined") return "08:00"
+    return localStorage.getItem("quiet-hours-end") || "08:00"
+  })
+  const [quietHoursEnabled, setQuietHoursEnabled] = useState(() => {
+    if (typeof window === "undefined") return false
+    return localStorage.getItem("quiet-hours-enabled") === "true"
+  })
 
   useEffect(() => {
     setNotificationPermission(getNotificationPermission())
   }, [])
+
+  const toggleSound = () => {
+    const newValue = !soundEnabled
+    setSoundEnabled(newValue)
+    localStorage.setItem("reminder-sound-enabled", String(newValue))
+  }
+
+  const toggleQuietHours = () => {
+    const newValue = !quietHoursEnabled
+    setQuietHoursEnabled(newValue)
+    localStorage.setItem("quiet-hours-enabled", String(newValue))
+  }
+
+  const updateQuietHoursStart = (value: string) => {
+    setQuietHoursStart(value)
+    localStorage.setItem("quiet-hours-start", value)
+  }
+
+  const updateQuietHoursEnd = (value: string) => {
+    setQuietHoursEnd(value)
+    localStorage.setItem("quiet-hours-end", value)
+  }
 
   const handleRequestPermission = async () => {
     const permission = await requestNotificationPermission()
@@ -78,6 +116,68 @@ export default function SettingsPage() {
                 </Button>
               ) : (
                 <span className="text-sm text-green-600">Enabled</span>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Sound Notifications */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="sound-notifications">Sound Notifications</Label>
+                <p className="text-sm text-muted-foreground">
+                  Play a sound when reminders trigger
+                </p>
+              </div>
+              <Switch 
+                id="sound-notifications" 
+                checked={soundEnabled}
+                onCheckedChange={toggleSound}
+              />
+            </div>
+
+            <Separator />
+
+            {/* Quiet Hours */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="quiet-hours">Quiet Hours</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Suppress notifications during these hours
+                  </p>
+                </div>
+                <Switch 
+                  id="quiet-hours" 
+                  checked={quietHoursEnabled}
+                  onCheckedChange={toggleQuietHours}
+                />
+              </div>
+              
+              {quietHoursEnabled && (
+                <div className="flex items-center gap-4 pl-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="quiet-start" className="text-xs">From</Label>
+                    <input
+                      type="time"
+                      id="quiet-start"
+                      value={quietHoursStart}
+                      onChange={(e) => updateQuietHoursStart(e.target.value)}
+                      className="flex h-9 w-24 rounded-md border border-input bg-background px-2 py-1 text-sm"
+                    />
+                  </div>
+                  <span className="text-muted-foreground">to</span>
+                  <div className="space-y-1">
+                    <Label htmlFor="quiet-end" className="text-xs">Until</Label>
+                    <input
+                      type="time"
+                      id="quiet-end"
+                      value={quietHoursEnd}
+                      onChange={(e) => updateQuietHoursEnd(e.target.value)}
+                      className="flex h-9 w-24 rounded-md border border-input bg-background px-2 py-1 text-sm"
+                    />
+                  </div>
+                </div>
               )}
             </div>
           </CardContent>

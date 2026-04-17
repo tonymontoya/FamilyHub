@@ -6,6 +6,7 @@ import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-f
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { CalendarExport } from "@/components/calendar/calendar-export"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -348,10 +349,13 @@ export default function CalendarPage() {
               Manage family events and activities
             </p>
           </div>
-          <Button onClick={handleNewEvent} data-testid="new-event-button">
-            <Plus className="mr-2 h-4 w-4" />
-            New Event
-          </Button>
+          <div className="flex items-center gap-2">
+            <CalendarExport currentDate={currentDate} />
+            <Button onClick={handleNewEvent} data-testid="new-event-button">
+              <Plus className="mr-2 h-4 w-4" />
+              New Event
+            </Button>
+          </div>
         </div>
 
         {/* Calendar Grid */}
