@@ -64,7 +64,7 @@ export function CalendarExport({ currentDate }: CalendarExportProps) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger>
         <Button variant="outline" size="sm" disabled={isExporting}>
           <Download className="mr-2 h-4 w-4" />
           Export

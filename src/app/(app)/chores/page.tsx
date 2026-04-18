@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Edit, Archive, Calendar, User, Star } from "lucide-react"
+import { Plus, Edit, Archive, Calendar, User, Star, ClipboardList } from "lucide-react"
 import { toast } from "sonner"
 import { rrulestr } from "rrule"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { SkeletonChore } from "@/components/ui/skeleton-card"
 
 interface Chore {
   id: string
@@ -92,8 +93,24 @@ export default function ChoresPage() {
   if (isLoading) {
     return (
       <main className="flex-1 p-4 md:p-8">
-        <div className="flex h-64 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <div className="mx-auto max-w-4xl">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Chores</h1>
+              <p className="text-muted-foreground">
+                Manage recurring chores and assignments
+              </p>
+            </div>
+            <Button disabled>
+              <Plus className="mr-2 h-4 w-4" />
+              New Chore
+            </Button>
+          </div>
+          <div className="space-y-4">
+            <SkeletonChore />
+            <SkeletonChore />
+            <SkeletonChore />
+          </div>
         </div>
       </main>
     )
@@ -116,17 +133,18 @@ export default function ChoresPage() {
         </div>
 
         {chores.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <div className="mb-4 rounded-full bg-muted p-4">
-                <Calendar className="h-8 w-8 text-muted-foreground" />
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <div className="mb-6 rounded-full bg-primary/10 p-6">
+                <ClipboardList className="h-12 w-12 text-primary" />
               </div>
-              <h3 className="mb-2 text-lg font-medium">No chores yet</h3>
-              <p className="mb-6 max-w-sm text-center text-muted-foreground">
-                Create your first chore to start tracking tasks for your family.
+              <h3 className="mb-2 text-xl font-semibold">No chores yet</h3>
+              <p className="mb-8 max-w-sm text-center text-muted-foreground leading-relaxed">
+                Create your first chore to start tracking tasks for your family. 
+                Assign points to motivate your children!
               </p>
-              <Button onClick={() => router.push("/chores/new")}>
-                <Plus className="mr-2 h-4 w-4" />
+              <Button size="lg" onClick={() => router.push("/chores/new")}>
+                <Plus className="mr-2 h-5 w-5" />
                 Create First Chore
               </Button>
             </CardContent>

@@ -12,7 +12,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { calendarKeys } from "./keys"
 import { fetchEvents } from "./api"
 import { generateOccurrencesCached, invalidateEventCache, clearOccurrenceCache } from "@/lib/calendar/recurrence-cache"
-import type { EventOccurrence, OccurrenceFilters, CalendarEvent, EventException } from "./types"
+import type { EventOccurrence, OccurrenceFilters, CalendarEvent, EventException, EventsResponse } from "./types"
 import { parseISO, startOfDay, endOfDay } from "date-fns"
 import type { CalendarEvent as PrismaCalendarEvent, EventException as PrismaEventException } from "@prisma/client"
 import { useDebounce } from "@/hooks/use-debounce"
@@ -98,7 +98,10 @@ export function useOccurrences(filters: OccurrenceFilters) {
       })
       
       // Handle API wrapper format: { success: true, data: { events: [...] } }
-      const response = 'data' in apiResponse ? apiResponse.data : apiResponse
+      const apiData = apiResponse as unknown as Record<string, unknown>
+      const response = 'data' in apiData 
+        ? (apiData.data as EventsResponse)
+        : (apiResponse as EventsResponse)
 
       const rangeStart = startOfDay(parseISO(filters.start))
       const rangeEnd = endOfDay(parseISO(filters.end))
