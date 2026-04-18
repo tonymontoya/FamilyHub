@@ -17,7 +17,7 @@ interface PointsCardProps {
 
 export function PointsCard({ userRole, points }: PointsCardProps) {
   if (userRole === "PARENT" && points.children) {
-    return <ParentPointsCard children={points.children} />
+    return <ParentPointsCard childPoints={points.children} />
   }
 
   if (userRole === "CHILD" && points.total !== undefined) {
@@ -33,7 +33,7 @@ export function PointsCard({ userRole, points }: PointsCardProps) {
   return null
 }
 
-function ParentPointsCard({ children }: { children: ChildPoints[] }) {
+function ParentPointsCard({ childPoints }: { childPoints: ChildPoints[] }) {
   return (
     <Card>
       <CardHeader>
@@ -43,13 +43,13 @@ function ParentPointsCard({ children }: { children: ChildPoints[] }) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {children.length === 0 ? (
+        {childPoints.length === 0 ? (
           <p className="text-center text-muted-foreground py-4">
             No children in family yet.
           </p>
         ) : (
           <div className="space-y-4">
-            {children.map((child, index) => (
+            {childPoints.map((child, index) => (
               <div key={child.id} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">

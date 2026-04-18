@@ -72,16 +72,17 @@ export function ReminderNotifications() {
  * Can be used in a settings page
  */
 export function NotificationSettings() {
-  const [soundEnabled, setSoundEnabled] = useState(false)
-  const [permission, setPermission] = useState<NotificationPermission | null>(null)
-
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    setSoundEnabled(localStorage.getItem("reminder-sound-enabled") === "true")
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    if (typeof window === "undefined") return false
+    return localStorage.getItem("reminder-sound-enabled") === "true"
+  })
+  const [permission, setPermission] = useState<NotificationPermission | null>(() => {
+    if (typeof window === "undefined") return null
     if ("Notification" in window) {
-      setPermission(Notification.permission)
+      return Notification.permission
     }
-  }, [])
+    return null
+  })
 
   const requestPermission = async () => {
     if (!("Notification" in window)) return

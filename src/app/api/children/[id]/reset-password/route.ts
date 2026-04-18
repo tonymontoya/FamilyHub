@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
+import { randomInt } from "crypto"
 
 // Generate a cryptographically secure random password
 function generatePassword(): string {
@@ -9,7 +10,6 @@ function generatePassword(): string {
   const charsetLength = charset.length
   
   // Use Node.js crypto for cryptographically secure randomness
-  const { randomInt } = require("crypto")
   
   let password = ""
   for (let i = 0; i < 16; i++) {

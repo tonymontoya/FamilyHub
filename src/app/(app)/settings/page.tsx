@@ -7,12 +7,15 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { REMINDER_TIME_OPTIONS, requestNotificationPermission, getNotificationPermission } from "@/lib/notifications"
 
 export default function SettingsPage() {
   const router = useRouter()
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default")
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(() => {
+    if (typeof window === "undefined") return "default"
+    return getNotificationPermission()
+  })
   const [defaultReminder, setDefaultReminder] = useState<number>(15)
   const [soundEnabled, setSoundEnabled] = useState(() => {
     if (typeof window === "undefined") return false
@@ -30,10 +33,6 @@ export default function SettingsPage() {
     if (typeof window === "undefined") return false
     return localStorage.getItem("quiet-hours-enabled") === "true"
   })
-
-  useEffect(() => {
-    setNotificationPermission(getNotificationPermission())
-  }, [])
 
   const toggleSound = () => {
     const newValue = !soundEnabled

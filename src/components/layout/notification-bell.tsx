@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Bell } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -21,7 +21,6 @@ interface NotificationBellProps {
 
 export function NotificationBell({ initialCount }: NotificationBellProps) {
   const router = useRouter()
-  const [hasError, setHasError] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const { data, isError } = useDashboard({
     pollInterval: 30000,
@@ -31,14 +30,9 @@ export function NotificationBell({ initialCount }: NotificationBellProps) {
   // Use dashboard data for pending approvals count
   const pendingCount = data?.today?.pendingApprovals?.length ?? initialCount
 
-  // Track error state
-  useEffect(() => {
-    if (isError) setHasError(true)
-  }, [isError])
-
   // Show "!" if there was an error loading counts
-  const displayCount = hasError ? "!" : pendingCount > 9 ? "9+" : pendingCount
-  const showBadge = pendingCount > 0 || hasError
+  const displayCount = isError ? "!" : pendingCount > 9 ? "9+" : pendingCount
+  const showBadge = pendingCount > 0 || isError
 
   const handleNavigate = (href: string) => {
     setIsOpen(false)
@@ -59,7 +53,7 @@ export function NotificationBell({ initialCount }: NotificationBellProps) {
             <span
               className={cn(
                 "absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-medium",
-                hasError
+                isError
                   ? "bg-destructive text-destructive-foreground"
                   : "bg-primary text-primary-foreground"
               )}
@@ -92,7 +86,7 @@ export function NotificationBell({ initialCount }: NotificationBellProps) {
               View all approvals
             </DropdownMenuItem>
           </>
-        ) : hasError ? (
+        ) : isError ? (
           <div className="px-2 py-4 text-center text-sm text-muted-foreground">
             <p className="text-destructive font-medium mb-1">Unable to load notifications</p>
             <p>Will retry automatically</p>

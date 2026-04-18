@@ -115,12 +115,12 @@ export function useActiveReminders(options: UseActiveRemindersOptions = {}) {
   const [isVisible, setIsVisible] = useState(true)
   
   // Track last successful fetch time for the "since" parameter
-  const [lastFetchTime, setLastFetchTime] = useState<string | undefined>()
+  const lastFetchTimeRef = useRef<string | undefined>(undefined)
   
   // Use a stable query key - don't include timestamps
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["active-reminders"],
-    queryFn: () => fetchActiveReminders(lastFetchTime),
+    queryFn: () => fetchActiveReminders(lastFetchTimeRef.current),
     refetchInterval: enabled && isVisible ? pollInterval : false,
     refetchIntervalInBackground: false,
     enabled: enabled && isVisible,
@@ -140,7 +140,7 @@ export function useActiveReminders(options: UseActiveRemindersOptions = {}) {
         // Tab is becoming visible - catch up on missed reminders
         if (lastHiddenTimeRef.current) {
           // Update lastFetchTime to fetch since we were hidden
-          setLastFetchTime(lastHiddenTimeRef.current)
+          lastFetchTimeRef.current = lastHiddenTimeRef.current
           // Force immediate refetch
           refetch()
         }
@@ -181,7 +181,7 @@ export function useActiveReminders(options: UseActiveRemindersOptions = {}) {
 
     // Update last fetch time for next fetch
     if (data.checkedAt) {
-      setLastFetchTime(data.checkedAt)
+      lastFetchTimeRef.current = data.checkedAt
     }
   }, [data, onReminder])
 
@@ -237,7 +237,7 @@ export function useActiveReminders(options: UseActiveRemindersOptions = {}) {
 
   // Manual refresh function
   const refresh = useCallback(() => {
-    setLastFetchTime(undefined)
+    lastFetchTimeRef.current = undefined
     queryClient.invalidateQueries({ queryKey: ["active-reminders"] })
     refetch()
   }, [queryClient, refetch])
@@ -315,21 +315,26 @@ export function useReminderNotifications(options: {
   } = options
 
   // Track if browser notifications are supported and permitted
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | null>(null)
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | null>(() => {
+    if (typeof window === "undefined") return null
+    if ("Notification" in window) {
+      return Notification.permission
+    }
+    return null
+  })
   
   // Track API errors for user feedback
-  const [hasError, setHasError] = useState(false)
+  const hasShownErrorRef = useRef(false)
   
   // Track quiet hours state
-  const [inQuietHours, setInQuietHours] = useState(false)
+  const [inQuietHours, setInQuietHours] = useState(() => {
+    if (typeof window === "undefined") return false
+    return isQuietHours()
+  })
 
-  // Check notification permission and quiet hours on mount
+  // Update quiet hours periodically
   useEffect(() => {
     if (typeof window === "undefined") return
-    if ("Notification" in window) {
-      setNotificationPermission(Notification.permission)
-    }
-    setInQuietHours(isQuietHours())
     
     // Check quiet hours every minute
     const interval = setInterval(() => {
@@ -422,22 +427,22 @@ export function useReminderNotifications(options: {
 
   // Show error toast if API is failing
   useEffect(() => {
-    if (error && !hasError) {
-      setHasError(true)
+    if (error && !hasShownErrorRef.current) {
+      hasShownErrorRef.current = true
       toast.error("Failed to check reminders", {
         description: "Will retry automatically",
         action: {
           label: "Retry",
           onClick: () => {
-            setHasError(false)
+            hasShownErrorRef.current = false
             refresh()
           },
         },
       })
-    } else if (!error && hasError) {
-      setHasError(false)
+    } else if (!error && hasShownErrorRef.current) {
+      hasShownErrorRef.current = false
     }
-  }, [error, hasError, refresh])
+  }, [error, refresh])
 
   // Snooze functionality - dismiss locally and remind again in X minutes
   const snooze = useCallback((reminderId: string, minutes: number) => {

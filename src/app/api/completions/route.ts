@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
+import type { IncomingMessage } from "http"
 import formidable from "formidable"
 import { promises as fs } from "fs"
 import path from "path"
+import { PassThrough } from "stream"
 import { prisma } from "@/lib/prisma"
 import {
   authenticate,
@@ -61,20 +63,19 @@ async function parseFormData(
     const arrayBuffer = await request.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Create a fake IncomingMessage
-    const stream = require("stream")
-    const fakeReq = new stream.PassThrough()
+    // Create a fake IncomingMessage with headers
+    const fakeReq = Object.assign(new PassThrough(), {
+      headers: {} as Record<string, string>,
+    })
     fakeReq.end(buffer)
 
     // Copy headers from original request
-    const headers: Record<string, string> = {}
     request.headers.forEach((value, key) => {
-      headers[key] = value
+      fakeReq.headers[key] = value
     })
-    fakeReq.headers = headers
     fakeReq.headers["content-length"] = buffer.length.toString()
 
-    form.parse(fakeReq as any, (err, fields, files) => {
+    form.parse(fakeReq as unknown as IncomingMessage, (err, fields, files) => {
       if (err) {
         reject(err)
       } else {
@@ -228,7 +229,12 @@ export async function POST(request: NextRequest) {
 
     // Use upsert with unique constraint for atomic create/update
     // This prevents race conditions
-    let completion: any
+    let completion: Prisma.CompletionGetPayload<{
+      include: {
+        chore: { select: { title: true; points: true } }
+        member: { select: { displayName: true } }
+      }
+    }>
     let isUpdate = false
     
     try {

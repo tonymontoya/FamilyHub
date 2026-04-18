@@ -5,6 +5,8 @@ A free, open-source family management platform for organizing chores, tasks, cal
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
+[![Tests](https://img.shields.io/badge/tests-45%2F49%20passing-brightgreen)](./QUALITY_REPORT_v0.2.0.md)
+[![Quality](https://img.shields.io/badge/quality-v0.2.0%20ready-brightgreen)](./QUALITY_REPORT_v0.2.0.md)
 
 ## 🏠 Why Family Hub?
 

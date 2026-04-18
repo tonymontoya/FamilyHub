@@ -134,7 +134,7 @@ export function CompleteChoreDialog({
         <DialogHeader>
           <DialogTitle>Complete Chore</DialogTitle>
           <DialogDescription>
-            Mark &quot;{chore.title}" as complete. Add a photo as proof!
+            Mark &quot;{chore.title}&quot; as complete. Add a photo as proof!
           </DialogDescription>
         </DialogHeader>
 

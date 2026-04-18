@@ -29,7 +29,7 @@ function generateICS(events: Array<{
   const now = new Date()
   const timestamp = format(now, "yyyyMMdd'T'HHmmss'Z'")
   
-  let ics = [
+  const ics = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//Family Hub//Calendar//EN",
