@@ -5,6 +5,60 @@ All notable changes to Family Hub will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-08-14
+
+A patch release focused on correctness and internal quality. **No breaking API
+changes** — every route's response shape is preserved. Child login (completely
+broken in v0.2.0) now works end-to-end, a security fail-open is closed, and all
+API routes are unified onto a single auth/error/rate-limit stack.
+
+### Fixed
+- **Child login was completely broken.** Resolvers coupled `Member.username` to the
+  Better-Auth session email, but a child's username is their short name while their
+  auth email is synthetic — so every child-only API call returned 404. Added a real
+  `userId` foreign key from `Member` to `User` (with a backfill migration) and
+  switched all resolvers to look up the member by `session.user.id`.
+- **Child account creation returned 500.** The internal self-`fetch` to Better-Auth
+  sign-up omitted the `Origin` header and was rejected by the CSRF check. Added it.
+- **`npm test` was broken locally** — the vitest `setupFiles` path resolved against
+  `cwd` and couldn't find `src/test/setup.ts`, so the unit suite couldn't run.
+  Fixed the config (also excludes `.next/`).
+- **Better-Auth spawned its own Prisma client**, bypassing the HMR-safe singleton
+  and doubling Postgres connection pressure under `next dev` hot-reload. Now uses
+  the shared singleton.
+
+### Security
+- **Reminder cron endpoint failed open.** With `CRON_SECRET` unset, the guard
+  short-circuited and the endpoint processed requests unauthenticated. It now
+  fails closed (401) in production when the secret is missing or mismatched;
+  development is still allowed with a warning.
+
+### Changed
+- **Unified every API route onto one infrastructure stack.** Chores, completions,
+  dashboard, children, and auth routes previously used three different
+  auth/error/rate-limit patterns; they now share one `requireAuth`, one rate
+  limiter (HMR-safe singleton, survives hot-reload), and one `Errors` object.
+  ~400 lines of duplicated helper code removed (`src/lib/api-utils.ts` deleted;
+  `isValidUUID` moved to `lib/validation.ts`). Rate-limited responses now include
+  `X-RateLimit-*` headers.
+- A few auth/role error messages read more descriptively (e.g. "Authentication
+  required" instead of "Unauthorized"). Status codes and the `{ error: string }`
+  response shape are unchanged, so clients are unaffected.
+
+### Added
+- Regression E2E for child login (the previously broken path).
+- End-to-end E2E for the chore completion → parent approval → points flow, which
+  was previously validated only through direct database inserts.
+
+### Notes
+- Finding 5 (the dashboard's child chore filter) was reviewed. Its
+  first-come-first-served behavior for unassigned chores is functionally
+  defensible; the alternative semantics are a product question, so behavior is
+  preserved as-is with an explanatory comment.
+- Known debt (not fixed in this release): child creation still uses a server-side
+  self-`fetch` to Better-Auth rather than the server-side `auth.api.signUpEmail`
+  call (counts against the auth rate limit, network round-trip).
+
 ## [0.2.0] - 2026-04-17
 
 ### Release Status: ✅ READY FOR RELEASE
@@ -113,5 +167,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Family management
 - Simple calendar
 
+[0.2.1]: https://github.com/tonymontoya/FamilyHub/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/tony/family-hub/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tony/family-hub/releases/tag/v0.1.0
