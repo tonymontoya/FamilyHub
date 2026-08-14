@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/auth-utils"
-import { Errors, withFlatErrorHandling } from "@/lib/errors"
+import { withFlatErrorHandling } from "@/lib/errors"
 import { format } from "date-fns"
 
 /**
