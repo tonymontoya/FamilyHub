@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
+import { auth } from "@/lib/auth"
 import { requireAuth, requireRole } from "@/lib/auth-utils"
 import { Errors, withFlatErrorHandling } from "@/lib/errors"
 import { applyRateLimit } from "@/lib/rate-limit"
@@ -82,41 +83,24 @@ export const POST = withFlatErrorHandling(async (request) => {
   // This ensures uniqueness and prevents email delivery
   const syntheticEmail = `child-${member.familyId}-${normalizedUsername}@familyhub.local`
 
-  // Create child user in Better-Auth via internal API.
-  // The Origin header is required: Better-Auth enforces CSRF/origin checks and
-  // a server-side fetch omits Origin by default (would 403 MISSING_OR_NULL_ORIGIN).
-  const baseURL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-  const createUserResponse = await fetch(
-    `${baseURL}/api/auth/sign-up/email`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Origin": baseURL,
-      },
-      body: JSON.stringify({
-        email: syntheticEmail,
-        password,
-        name: sanitizedDisplayName,
-        username: normalizedUsername,
-      }),
-    }
-  )
+  // Create child user in Better-Auth directly via the server-side API.
+  // Unlike a self-fetch to /api/auth/sign-up/email, this needs no Origin
+  // header workaround and consumes no network round-trip.
+  const signUp = await auth.api.signUpEmail({
+    body: {
+      email: syntheticEmail,
+      password,
+      name: sanitizedDisplayName,
+      username: normalizedUsername,
+    },
+  })
 
-  if (!createUserResponse.ok) {
-    const errorData = await createUserResponse.json().catch(() => ({}))
-    console.error("Better-Auth user creation failed:", errorData)
+  if ("error" in signUp) {
+    console.error("Better-Auth user creation failed:", signUp.error)
     throw Errors.internal("Failed to create user account")
   }
 
-  // Get the created user to link to Member record
-  const authUser = await prisma.user.findUnique({
-    where: { username: normalizedUsername },
-  })
-
-  if (!authUser) {
-    throw Errors.internal("User creation verification failed")
-  }
+  const authUserId = signUp.user.id
 
   // Create Member record for the child
   // If this fails, we need to roll back the Better-Auth user
@@ -125,7 +109,7 @@ export const POST = withFlatErrorHandling(async (request) => {
     childMember = await prisma.member.create({
       data: {
         familyId: member.familyId,
-        userId: authUser.id,
+        userId: authUserId,
         role: "CHILD",
         username: normalizedUsername,
         displayName: sanitizedDisplayName,
@@ -137,11 +121,11 @@ export const POST = withFlatErrorHandling(async (request) => {
 
     try {
       await prisma.user.delete({
-        where: { id: authUser.id },
+        where: { id: authUserId },
       })
       // Also delete associated account
       await prisma.account.deleteMany({
-        where: { userId: authUser.id },
+        where: { userId: authUserId },
       })
     } catch (rollbackError) {
       console.error("CRITICAL: Rollback failed, orphaned auth user:", rollbackError)

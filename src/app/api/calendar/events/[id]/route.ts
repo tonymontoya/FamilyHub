@@ -16,7 +16,7 @@ import {
   Errors,
 } from "@/lib/errors"
 import { applyRateLimit } from "@/lib/rate-limit"
-import { parseISO } from "date-fns"
+import { parseDateOnly } from "@/lib/calendar/dates"
 
 /**
  * GET /api/calendar/events/[id]
@@ -177,15 +177,15 @@ export const PATCH = withErrorHandling(async (request, context) => {
     }
   }
 
-  // Parse dates if provided (all stored as UTC)
-  const startDate = data.startDate ? parseISO(data.startDate) : undefined
+  // Parse dates if provided (all stored as UTC wall-clock; see lib/calendar/dates)
+  const startDate = data.startDate ? parseDateOnly(data.startDate) : undefined
   const startTime = data.startTime
     ? new Date(`${data.startDate || existingEvent.startDate.toISOString().split("T")[0]}T${data.startTime}:00Z`)
     : data.startTime === null
       ? null
       : undefined
   const endDate = data.endDate
-    ? parseISO(data.endDate)
+    ? parseDateOnly(data.endDate)
     : data.endDate === null
       ? null
       : undefined

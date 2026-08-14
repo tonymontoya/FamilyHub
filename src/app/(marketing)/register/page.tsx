@@ -36,12 +36,10 @@ export default function RegisterPage() {
   })
 
   const onSubmit = async (data: RegisterFormData) => {
-    console.log('[Register] onSubmit called:', { email: data.email })
     setIsLoading(true)
     
     try {
       // Step 1: Sign up with Better-Auth
-      console.log('[Register] Calling authClient.signUp...')
       const { error: signUpError } = await authClient.signUp.email({
         email: data.email,
         password: data.password,
@@ -55,10 +53,7 @@ export default function RegisterPage() {
         return
       }
       
-      console.log('[Register] Sign up successful')
-
       // Step 2: Create family and link parent
-      console.log('[Register] Calling setup-family...')
       const response = await fetch("/api/auth/setup-family", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -76,7 +71,6 @@ export default function RegisterPage() {
         return
       }
 
-      console.log('[Register] Family setup successful')
       toast.success("Account created successfully!")
       router.push("/dashboard")
     } catch (error) {
@@ -98,7 +92,6 @@ export default function RegisterPage() {
         <CardContent>
           <form 
             onSubmit={(e) => {
-              console.log('[Register] Form submit event')
               e.preventDefault()
               e.stopPropagation()
               handleSubmit(onSubmit)(e)

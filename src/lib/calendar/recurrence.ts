@@ -1,12 +1,18 @@
 /**
  * Recurrence Utilities
- * 
+ *
  * Handles RRULE parsing and expansion for recurring events.
  * Uses the 'rrule' library (RFC 5545 compliant).
+ *
+ * Date handling: the calendar stores date-only values as UTC wall-clock
+ * instants (00:00Z). Expansion, occurrence ids, and exception matching all
+ * key off UTC calendar dates via the helpers in ./dates, so behavior is
+ * identical regardless of the process timezone.
  */
 
 import { rrulestr } from "rrule"
 import type { CalendarEvent, EventException } from "@prisma/client"
+import { dateKey, normalizeToUTCDate } from "./dates"
 
 export interface EventOccurrence {
   id: string // eventId + date
@@ -26,8 +32,40 @@ export interface EventOccurrence {
 }
 
 /**
+ * Parse the stored recurrence rule with a normalized UTC dtstart so the
+ * library expands on clean calendar dates regardless of the stored
+ * instant's time component.
+ */
+function parseRule(event: CalendarEvent) {
+  return rrulestr(event.recurrenceRule!, {
+    dtstart: normalizeToUTCDate(event.startDate),
+  })
+}
+
+/**
+ * Find a cancellation-style exception for a UTC date key.
+ */
+function findExceptionByDateKey(
+  exceptions: EventException[],
+  key: string
+): EventException | undefined {
+  return exceptions.find((e) => dateKey(e.originalDate) === key)
+}
+
+/**
+ * The latest instant an occurrence may have: the range end, clamped by the
+ * series' recurrenceEnd when one is set.
+ */
+function effectiveRangeEnd(rangeEnd: Date, recurrenceEnd: Date | null): Date {
+  if (recurrenceEnd && recurrenceEnd < rangeEnd) {
+    return recurrenceEnd
+  }
+  return rangeEnd
+}
+
+/**
  * Generate occurrences for a recurring event within a date range
- * 
+ *
  * @param event - The base recurring event
  * @param exceptions - Array of exceptions for this event
  * @param rangeStart - Start of the range to generate occurrences for
@@ -49,27 +87,25 @@ export function generateOccurrences(
   }
 
   try {
-    // Parse the RRULE
-    const rule = rrulestr(event.recurrenceRule, {
-      dtstart: event.startDate,
-    })
+    const rule = parseRule(event)
 
-    // Get all dates in the range
-    const dates = rule.between(rangeStart, rangeEnd, true)
+    const dates = rule.between(
+      rangeStart,
+      effectiveRangeEnd(rangeEnd, event.recurrenceEnd),
+      true
+    )
 
     // Create a map of exceptions by date for quick lookup
     const exceptionMap = new Map<string, EventException>()
     for (const ex of exceptions) {
-      const dateKey = ex.originalDate.toISOString().split("T")[0]
-      exceptionMap.set(dateKey, ex)
+      exceptionMap.set(dateKey(ex.originalDate), ex)
     }
 
     // Generate occurrences
     const occurrences: EventOccurrence[] = []
     for (const date of dates) {
-      const dateKey = date.toISOString().split("T")[0]
-      const exception = exceptionMap.get(dateKey)
-      
+      const exception = exceptionMap.get(dateKey(date))
+
       occurrences.push(createOccurrence(event, date, exception ?? null))
     }
 
@@ -96,12 +132,12 @@ function createOccurrence(
   const title = exception?.title ?? event.title
   const description = exception?.description ?? event.description
   const location = exception?.location ?? event.location
-  
+
   // For times, we need to handle the date portion correctly
   // Exception times are stored as full Date objects, but we need to apply them to the occurrence date
   let startTime: Date | null = null
   let endTime: Date | null = null
-  
+
   if (exception?.startTime) {
     // Apply exception's time to the occurrence date
     startTime = combineDateAndTime(date, exception.startTime)
@@ -109,7 +145,7 @@ function createOccurrence(
     // Apply event's time to the occurrence date
     startTime = combineDateAndTime(date, event.startTime)
   }
-  
+
   if (exception?.endTime) {
     endTime = combineDateAndTime(date, exception.endTime)
   } else if (event.endTime) {
@@ -117,7 +153,7 @@ function createOccurrence(
   }
 
   return {
-    id: `${event.id}_${date.toISOString().split("T")[0]}`,
+    id: `${event.id}_${dateKey(date)}`,
     eventId: event.id,
     date,
     title,
@@ -161,21 +197,22 @@ export function isValidOccurrence(
   }
 
   try {
-    const rule = rrulestr(event.recurrenceRule, {
-      dtstart: event.startDate,
-    })
+    const rule = parseRule(event)
 
-    // Check if date matches the recurrence pattern
-    const dates = rule.between(date, date, true)
+    // Check if the date's calendar day matches the recurrence pattern
+    const dayStart = normalizeToUTCDate(date)
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000 - 1)
+    const dates = rule.between(
+      dayStart,
+      effectiveRangeEnd(dayEnd, event.recurrenceEnd),
+      true
+    )
     if (dates.length === 0) {
       return false
     }
 
     // Check if there's a cancellation exception
-    const dateKey = date.toISOString().split("T")[0]
-    const exception = exceptions.find(
-      (e) => e.originalDate.toISOString().split("T")[0] === dateKey
-    )
+    const exception = findExceptionByDateKey(exceptions, dateKey(dayStart))
 
     return !exception?.isCancelled
   } catch {
@@ -190,8 +227,18 @@ export function getNextOccurrence(
   event: CalendarEvent,
   exceptions: EventException[],
   afterDate: Date = new Date(),
-  maxDepth: number = 10,
-  currentDepth: number = 0
+  maxDepth: number = 10
+): Date | null {
+  return findNextOccurrence(event, exceptions, afterDate, maxDepth, 0, true)
+}
+
+function findNextOccurrence(
+  event: CalendarEvent,
+  exceptions: EventException[],
+  afterDate: Date,
+  maxDepth: number,
+  currentDepth: number,
+  inclusive: boolean
 ): Date | null {
   // Prevent infinite recursion if many consecutive occurrences are cancelled
   if (currentDepth >= maxDepth) return null
@@ -200,27 +247,32 @@ export function getNextOccurrence(
   }
 
   try {
-    const rule = rrulestr(event.recurrenceRule, {
-      dtstart: event.startDate,
-    })
+    const rule = parseRule(event)
 
-    // Get next 10 occurrences and find the first valid one
-    const dates = rule.after(afterDate, true)
-    
-    if (!dates) return null
+    const next = rule.after(afterDate, inclusive)
+
+    if (!next) return null
+
+    // The series ends at recurrenceEnd
+    if (event.recurrenceEnd && next > event.recurrenceEnd) return null
 
     // Check for cancellation exception
-    const dateKey = dates.toISOString().split("T")[0]
-    const exception = exceptions.find(
-      (e) => e.originalDate.toISOString().split("T")[0] === dateKey
-    )
+    const exception = findExceptionByDateKey(exceptions, dateKey(next))
 
     if (exception?.isCancelled) {
-      // Get the next one recursively (with depth limit to prevent infinite loop)
-      return getNextOccurrence(event, exceptions, dates, maxDepth, currentDepth + 1)
+      // Get the next one (strictly after the cancelled date) with a depth
+      // limit to prevent unbounded recursion
+      return findNextOccurrence(
+        event,
+        exceptions,
+        next,
+        maxDepth,
+        currentDepth + 1,
+        false
+      )
     }
 
-    return dates
+    return next
   } catch {
     return null
   }

@@ -19,7 +19,7 @@ import {
   Errors,
 } from "@/lib/errors"
 import { applyRateLimit } from "@/lib/rate-limit"
-import { startOfDay, endOfDay, parseISO } from "date-fns"
+import { parseDateOnly, utcDayRange } from "@/lib/calendar/dates"
 import type { EventType } from "@prisma/client"
 
 /**
@@ -54,8 +54,8 @@ export const GET = withErrorHandling(async (request) => {
     end: endParam,
   })
 
-  const startDate = startOfDay(parseISO(dateRange.start))
-  const endDate = endOfDay(parseISO(dateRange.end))
+  // UTC day bounds so range filtering is independent of the server timezone
+  const { start: startDate, end: endDate } = utcDayRange(dateRange.start, dateRange.end)
 
   // Build where clause
   const where = {
@@ -219,12 +219,12 @@ export const POST = withErrorHandling(async (request) => {
     }
   }
 
-  // Parse dates (all stored as UTC)
-  const startDate = parseISO(data.startDate)
+  // Parse dates (all stored as UTC wall-clock; see lib/calendar/dates)
+  const startDate = parseDateOnly(data.startDate)
   const startTime = data.startTime
     ? new Date(`${data.startDate}T${data.startTime}:00Z`)  // Z suffix = UTC
     : null
-  const endDate = data.endDate ? parseISO(data.endDate) : null
+  const endDate = data.endDate ? parseDateOnly(data.endDate) : null
   const endTime = data.endTime && data.startTime
     ? new Date(`${data.endDate || data.startDate}T${data.endTime}:00Z`)  // Z suffix = UTC
     : null

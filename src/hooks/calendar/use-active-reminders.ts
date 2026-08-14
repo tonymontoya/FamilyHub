@@ -453,7 +453,6 @@ export function useReminderNotifications(options: {
     setTimeout(() => {
       // This will cause the reminder to be shown again on next poll
       // In a real implementation, you might want to track snooze state server-side
-      console.log(`Snooze expired for reminder ${reminderId}`)
     }, minutes * 60 * 1000)
     
     toast.success(`Reminder snoozed for ${minutes} minutes`)

@@ -5,6 +5,67 @@ All notable changes to Family Hub will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-08-14
+
+A patch release fixing the last user-facing correctness bug (recurring calendar
+events displaying on the wrong day outside UTC) plus two more recurrence
+engine defects surfaced by its new test suite. **No breaking API changes** —
+response shapes are preserved; occurrence id format is unchanged for events
+written since v0.2.1 and earlier UTC deployments.
+
+### Fixed
+- **Recurring events drifted to the wrong day on non-UTC deployments, and
+  single-occurrence edits/cancellations silently failed to apply.** Date-only
+  values (`YYYY-MM-DD`) were parsed with date-fns `parseISO`, which resolves
+  them to the *server's local* midnight — so the stored instant, the rrule
+  expansion, and the UTC date keys used for exception matching all shifted
+  whenever the server (or, for range queries, the browser) ran outside UTC.
+  Date-only strings are now parsed to **UTC wall-clock midnight** everywhere
+  (new primitives in `src/lib/calendar/dates.ts`), matching how event times
+  were already stored. Expansion, occurrence ids, and exception keys are now
+  identical in any server or browser timezone (verified under
+  `TZ=UTC`, `America/New_York`, and `Pacific/Auckland`).
+- **A recurring series' end date (`recurrenceEnd`) was ignored.** Stored
+  RRULE strings carry no `UNTIL`, and none of `generateOccurrences`,
+  `isValidOccurrence`, or `getNextOccurrence` consulted `recurrenceEnd`, so
+  series never actually stopped. All three now clamp to the series end.
+- **`getNextOccurrence` could not skip a cancelled occurrence.** Its
+  recursion re-included the cancelled date itself (`rule.after(date,
+  true)`) until the depth limit was exhausted, returning `null`. It now
+  advances strictly past cancelled dates (depth-limited as before).
+
+### Changed
+- Child account creation (`POST /api/children`) calls Better-Auth's
+  server-side `auth.api.signUpEmail` directly instead of self-fetching
+  `/api/auth/sign-up/email`. This removes the `Origin`-header workaround, a
+  network round-trip, and consumption of the shared 5/min HTTP sign-up
+  rate-limit budget.
+
+### Added
+- Unit suite for the recurrence engine (previously zero coverage): 33 tests
+  across `src/lib/calendar/dates.test.ts` and
+  `src/lib/calendar/recurrence.test.ts` covering daily/weekly/monthly
+  expansion, range boundaries, `recurrenceEnd` clamping, exception
+  override/cancellation matching, time application, `isValidOccurrence`,
+  and `getNextOccurrence` — all pinned to explicit UTC instants so they pass
+  in any runner timezone.
+- Unit suite for the HMR-safe `RateLimiter` singleton (8 tests): allow/block
+  transitions, window expiry via fake timers, key independence, `reset()`,
+  and `applyRateLimit` header generation + 429 behavior.
+
+### Removed
+- Stray debug `console.log`s (register page form flow, reminder snooze
+  expiry). Intentional error-path `console.error` logging is kept.
+
+### Notes
+- The per-event `timezone` field remains display metadata: occurrence date
+  keys are the creator's typed wall-clock dates, rendered identically for
+  every viewer. A fully timezone-aware model (true instant storage plus
+  per-viewer rendering) is deferred to a future minor release.
+- Events written by a pre-0.2.2 deployment on a **non-UTC server** may
+  display shifted by one day; re-saving the event fixes it. Databases that
+  ran under UTC (including the test database) are unaffected.
+
 ## [0.2.1] - 2026-08-14
 
 A patch release focused on correctness and internal quality. **No breaking API

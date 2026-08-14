@@ -13,7 +13,8 @@ import { calendarKeys } from "./keys"
 import { fetchEvents } from "./api"
 import { generateOccurrencesCached, invalidateEventCache, clearOccurrenceCache } from "@/lib/calendar/recurrence-cache"
 import type { EventOccurrence, OccurrenceFilters, CalendarEvent, EventException, EventsResponse } from "./types"
-import { parseISO, startOfDay, endOfDay } from "date-fns"
+import { parseISO } from "date-fns"
+import { utcDayRange } from "@/lib/calendar/dates"
 import type { CalendarEvent as PrismaCalendarEvent, EventException as PrismaEventException } from "@prisma/client"
 import { useDebounce } from "@/hooks/use-debounce"
 
@@ -103,8 +104,8 @@ export function useOccurrences(filters: OccurrenceFilters) {
         ? (apiData.data as EventsResponse)
         : (apiResponse as EventsResponse)
 
-      const rangeStart = startOfDay(parseISO(filters.start))
-      const rangeEnd = endOfDay(parseISO(filters.end))
+      // UTC day bounds — occurrence date keys are UTC wall-clock dates
+      const { start: rangeStart, end: rangeEnd } = utcDayRange(filters.start, filters.end)
 
       // Expand recurring events into occurrences
       const occurrences: EventOccurrence[] = []

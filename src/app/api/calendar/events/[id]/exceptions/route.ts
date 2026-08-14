@@ -18,7 +18,7 @@ import {
   Errors,
 } from "@/lib/errors"
 import { applyRateLimit } from "@/lib/rate-limit"
-import { parseISO } from "date-fns"
+import { parseDateOnly } from "@/lib/calendar/dates"
 
 /**
  * POST /api/calendar/events/[id]/exceptions
@@ -61,8 +61,8 @@ export const POST = withErrorHandling(async (request, context) => {
   const body = await request.json()
   const data = validateOrThrow(createExceptionSchema, body)
 
-  // Parse the original date
-  const originalDate = parseISO(data.originalDate)
+  // Parse the original date (UTC wall-clock; see lib/calendar/dates)
+  const originalDate = parseDateOnly(data.originalDate)
 
   // Validate that originalDate is within the event's recurrence range
   if (originalDate < event.startDate) {
