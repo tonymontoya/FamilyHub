@@ -1,18 +1,11 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import {
-  authenticate,
-  requireAuth,
-  requireRole,
-  checkRateLimit,
-  isValidUUID,
-  Errors,
-} from "@/lib/api-utils"
-
-// Rate limiting: Max 30 approvals per hour per parent
-const RATE_LIMIT_CONFIG = { max: 30, windowMs: 60 * 60 * 1000 }
+import { requireAuth, requireRole } from "@/lib/auth-utils"
+import { Errors, withFlatErrorHandling } from "@/lib/errors"
+import { applyRateLimit } from "@/lib/rate-limit"
+import { isValidUUID } from "@/lib/validation"
 
 // Input validation schema
 const approveSchema = z.object({
@@ -26,91 +19,76 @@ const approveSchema = z.object({
  * Approve a completion and award points to the child.
  * Transactional: All operations succeed or all fail.
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withFlatErrorHandling(async (request, context) => {
+  const { id: completionId } = await context.params
+
+  // Validate UUID format
+  if (!isValidUUID(completionId)) {
+    throw Errors.badRequest("Invalid completion ID format")
+  }
+
+  const { member } = await requireAuth()
+  requireRole(member, "PARENT")
+
+  // Rate limit: 30 approvals per hour per parent
+  const rateLimitHeaders = applyRateLimit("approval", member.id, "approve")
+
+  // Get the completion with related data
+  const completion = await prisma.completion.findUnique({
+    where: { id: completionId },
+    include: {
+      chore: true,
+      member: true,
+    },
+  })
+
+  if (!completion) {
+    throw Errors.notFound("Completion")
+  }
+
+  // Verify completion belongs to parent's family
+  if (completion.chore.familyId !== member.familyId) {
+    throw Errors.forbidden("Access denied")
+  }
+
+  // Verify completion is pending
+  if (completion.status !== "PENDING") {
+    throw Errors.conflict(`Completion is already ${completion.status.toLowerCase()}`)
+  }
+
+  // Parse and validate request body
+  let body: unknown
   try {
-    const { id: completionId } = await params
+    body = await request.json()
+  } catch {
+    throw Errors.badRequest("Invalid JSON in request body")
+  }
 
-    // Validate UUID format
-    if (!isValidUUID(completionId)) {
-      return Errors.badRequest("Invalid completion ID format")
-    }
+  const validationResult = approveSchema.safeParse(body)
+  if (!validationResult.success) {
+    throw Errors.badRequest("Invalid input", validationResult.error.flatten())
+  }
 
-    // Authenticate
-    const authContext = await authenticate()
-    const authError = requireAuth(authContext)
-    if (authError) return authError
+  const { points: customPoints, notes: approvalNotes } = validationResult.data
 
-    // Require parent role
-    const roleError = requireRole(authContext!, "PARENT")
-    if (roleError) return roleError
+  // Determine points to award
+  const pointsToAward = customPoints ?? completion.chore.points
 
-    const parentMember = authContext!.member
-    
-    // Check rate limit
-    if (!checkRateLimit(`approval:${parentMember.id}`, RATE_LIMIT_CONFIG)) {
-      return Errors.tooManyRequests()
-    }
+  // Sanitize notes - prevent nested [Parent Notes:] brackets
+  const sanitizedNotes = approvalNotes
+    ? approvalNotes.replace(/<[^>]*>/g, "").replace(/\[Parent Notes:[^\]]*\]/g, "").trim().slice(0, 500)
+    : null
 
-    // Get the completion with related data
-    const completion = await prisma.completion.findUnique({
-      where: { id: completionId },
-      include: {
-        chore: true,
-        member: true,
-      },
-    })
-
-    if (!completion) {
-      return Errors.notFound("Completion")
-    }
-
-    // Verify completion belongs to parent's family
-    if (completion.chore.familyId !== parentMember.familyId) {
-      return Errors.forbidden("Access denied")
-    }
-
-    // Verify completion is pending
-    if (completion.status !== "PENDING") {
-      return Errors.conflict(`Completion is already ${completion.status.toLowerCase()}`)
-    }
-
-    // Parse and validate request body
-    let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return Errors.badRequest("Invalid JSON in request body")
-    }
-
-    const validationResult = approveSchema.safeParse(body)
-    if (!validationResult.success) {
-      return Errors.badRequest(
-        "Invalid input",
-        validationResult.error.flatten()
-      )
-    }
-
-    const { points: customPoints, notes: approvalNotes } = validationResult.data
-
-    // Determine points to award
-    const pointsToAward = customPoints ?? completion.chore.points
-
-    // Sanitize notes - prevent nested [Parent Notes:] brackets
-    const sanitizedNotes = approvalNotes
-      ? approvalNotes.replace(/<[^>]*>/g, "").replace(/\[Parent Notes:[^\]]*\]/g, "").trim().slice(0, 500)
-      : null
-
-    // Execute approval in a transaction
-    const result = await prisma.$transaction(async (tx) => {
+  // Execute approval in a transaction
+  let result
+  try {
+    result = await prisma.$transaction(async (tx) => {
       // 1. Update completion status
       const updatedCompletion = await tx.completion.update({
         where: { id: completionId },
         data: {
           status: "APPROVED",
-          approvedBy: parentMember.id,
+          approvedBy: member.id,
           approvedAt: new Date(),
           pointsAwarded: pointsToAward,
           notes: sanitizedNotes
@@ -132,38 +110,35 @@ export async function POST(
 
       return { updatedCompletion, pointTransaction }
     })
-
-    // Get updated member stats
-    const memberStats = await prisma.pointTransaction.aggregate({
-      where: { memberId: completion.memberId },
-      _sum: { amount: true },
-    })
-
-    return NextResponse.json({
-      id: result.updatedCompletion.id,
-      status: "APPROVED",
-      pointsAwarded: result.updatedCompletion.pointsAwarded,
-      approvedAt: result.updatedCompletion.approvedAt?.toISOString(),
-      child: {
-        id: completion.memberId,
-        displayName: completion.member.displayName,
-        totalPoints: memberStats._sum.amount || 0,
-      },
-      chore: {
-        id: completion.choreId,
-        title: completion.chore.title,
-      },
-    })
   } catch (error) {
-    console.error("Completion approval error:", error)
-
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2025"
     ) {
-      return Errors.notFound("Completion")
+      throw Errors.notFound("Completion")
     }
-
-    return Errors.internal()
+    throw error
   }
-}
+
+  // Get updated member stats
+  const memberStats = await prisma.pointTransaction.aggregate({
+    where: { memberId: completion.memberId },
+    _sum: { amount: true },
+  })
+
+  return NextResponse.json({
+    id: result.updatedCompletion.id,
+    status: "APPROVED",
+    pointsAwarded: result.updatedCompletion.pointsAwarded,
+    approvedAt: result.updatedCompletion.approvedAt?.toISOString(),
+    child: {
+      id: completion.memberId,
+      displayName: completion.member.displayName,
+      totalPoints: memberStats._sum.amount || 0,
+    },
+    chore: {
+      id: completion.choreId,
+      title: completion.chore.title,
+    },
+  }, { headers: rateLimitHeaders })
+})

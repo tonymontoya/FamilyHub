@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import type { IncomingMessage } from "http"
@@ -7,13 +7,10 @@ import { promises as fs } from "fs"
 import path from "path"
 import { PassThrough } from "stream"
 import { prisma } from "@/lib/prisma"
-import {
-  authenticate,
-  requireAuth,
-  checkRateLimit,
-  isValidUUID,
-  Errors,
-} from "@/lib/api-utils"
+import { requireAuth } from "@/lib/auth-utils"
+import { Errors, withFlatErrorHandling } from "@/lib/errors"
+import { applyRateLimit } from "@/lib/rate-limit"
+import { isValidUUID } from "@/lib/validation"
 import {
   validateFileMetadata,
   saveFile,
@@ -22,17 +19,14 @@ import {
   ALLOWED_MIME_TYPES,
 } from "@/lib/file-upload"
 
-// Rate limiting: Max 20 completions per hour per member
-const RATE_LIMIT_CONFIG = { max: 20, windowMs: 60 * 60 * 1000 }
-
 // Formidable configuration
 const formConfig: formidable.Options = {
   maxFileSize: MAX_FILE_SIZE,
   maxFiles: 1,
   filter: (part) => {
     // Only accept image uploads
-    return part.mimetype 
-      ? (ALLOWED_MIME_TYPES as readonly string[]).includes(part.mimetype) 
+    return part.mimetype
+      ? (ALLOWED_MIME_TYPES as readonly string[]).includes(part.mimetype)
       : false
   },
 }
@@ -51,7 +45,7 @@ const completionSchema = z.object({
  * Works with Next.js App Router by creating a fake IncomingMessage
  */
 async function parseFormData(
-  request: NextRequest
+  request: Request
 ): Promise<{
   fields: formidable.Fields
   files: formidable.Files
@@ -91,22 +85,15 @@ async function parseFormData(
  * Mark a chore as complete with optional photo and notes.
  * Idempotent: Same chore + child + day updates existing completion.
  */
-export async function POST(request: NextRequest) {
+export const POST = withFlatErrorHandling(async (request) => {
   let uploadedFilePath: string | null = null
   let tempFilePath: string | null = null
 
   try {
-    // Authenticate
-    const authContext = await authenticate()
-    const authError = requireAuth(authContext)
-    if (authError) return authError
+    const { member } = await requireAuth()
 
-    const member = authContext!.member
-
-    // Check rate limit
-    if (!checkRateLimit(`completion:${member.id}`, RATE_LIMIT_CONFIG)) {
-      return Errors.tooManyRequests()
-    }
+    // Rate limit: 20 completions per hour per member
+    const rateLimitHeaders = applyRateLimit("completion", member.id)
 
     // Parse multipart form data
     let fields: formidable.Fields
@@ -117,7 +104,7 @@ export async function POST(request: NextRequest) {
       files = parsed.files
     } catch (parseError) {
       console.error("Form parsing error:", parseError)
-      return Errors.badRequest("Invalid form data")
+      throw Errors.badRequest("Invalid form data")
     }
 
     // Extract and validate fields
@@ -132,7 +119,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!validationResult.success) {
-      return Errors.badRequest(
+      throw Errors.badRequest(
         "Invalid input",
         validationResult.error.flatten()
       )
@@ -144,12 +131,12 @@ export async function POST(request: NextRequest) {
     // Validate completedAt date
     const completedAt = completedAtStr ? new Date(completedAtStr) : new Date()
     if (isNaN(completedAt.getTime())) {
-      return Errors.badRequest("Invalid date")
+      throw Errors.badRequest("Invalid date")
     }
 
     // Prevent future dates
     if (completedAt > new Date()) {
-      return Errors.badRequest("Date cannot be in the future")
+      throw Errors.badRequest("Date cannot be in the future")
     }
 
     // Get the chore and verify it exists and belongs to family
@@ -159,16 +146,16 @@ export async function POST(request: NextRequest) {
     })
 
     if (!chore) {
-      return Errors.notFound("Chore")
+      throw Errors.notFound("Chore")
     }
 
     if (chore.familyId !== member.familyId) {
-      return Errors.forbidden("Access denied")
+      throw Errors.forbidden("Access denied")
     }
 
     // Check if chore is active
     if (chore.status !== "ACTIVE" || chore.deletedAt) {
-      return Errors.badRequest("Cannot complete archived or deleted chore")
+      throw Errors.badRequest("Cannot complete archived or deleted chore")
     }
 
     // Authorization check:
@@ -176,7 +163,7 @@ export async function POST(request: NextRequest) {
     // - CHILD can only complete chores assigned to them (or unassigned chores)
     if (member.role === "CHILD") {
       if (chore.assigneeId && chore.assigneeId !== member.id) {
-        return Errors.forbidden("Not assigned to this chore")
+        throw Errors.forbidden("Not assigned to this chore")
       }
       // Note: Unassigned chores (assigneeId is null) can be completed by any child
       // This is intentional - allows "first come first served" for unassigned chores
@@ -188,7 +175,7 @@ export async function POST(request: NextRequest) {
 
     if (file) {
       tempFilePath = file.filepath
-      
+
       // Validate file metadata
       const metadataValidation = validateFileMetadata({
         mimetype: file.mimetype || undefined,
@@ -197,7 +184,7 @@ export async function POST(request: NextRequest) {
       })
 
       if (!metadataValidation.valid) {
-        return Errors.badRequest("Invalid file")
+        throw Errors.badRequest("Invalid file")
       }
 
       // Save file with validation
@@ -211,7 +198,7 @@ export async function POST(request: NextRequest) {
         uploadedFilePath = uploadResult.filepath
       } catch (saveError) {
         console.error("File save error:", saveError)
-        return Errors.badRequest("Failed to save file")
+        throw Errors.badRequest("Failed to save file")
       }
     }
 
@@ -235,8 +222,7 @@ export async function POST(request: NextRequest) {
         member: { select: { displayName: true } }
       }
     }>
-    let isUpdate = false
-    
+
     try {
       completion = await prisma.completion.upsert({
         where: {
@@ -270,27 +256,6 @@ export async function POST(request: NextRequest) {
           },
         },
       })
-      
-      // Check if this was an update by comparing createdAt and updatedAt
-      isUpdate = completion.updatedAt.getTime() !== completion.createdAt.getTime()
-      
-      // If we uploaded a new photo and it's an update, delete the old one
-      if (isUpdate && photoUrl) {
-        const oldCompletion = await prisma.completion.findUnique({
-          where: { id: completion.id },
-          select: { photoUrl: true }
-        })
-        
-        if (oldCompletion?.photoUrl && oldCompletion.photoUrl !== photoUrl) {
-          const oldPath = path.join(process.cwd(), "public", oldCompletion.photoUrl)
-          try {
-            await deleteFile(oldPath)
-          } catch (deleteError) {
-            console.error("Failed to delete old photo:", deleteError)
-            // Continue - old file will be cleaned up by periodic job
-          }
-        }
-      }
     } catch (upsertError) {
       // Clean up uploaded file on error
       if (uploadedFilePath) {
@@ -298,7 +263,34 @@ export async function POST(request: NextRequest) {
           await deleteFile(uploadedFilePath)
         } catch {}
       }
+      if (
+        upsertError instanceof Prisma.PrismaClientKnownRequestError &&
+        upsertError.code === "P2002"
+      ) {
+        throw Errors.conflict("Completion already exists")
+      }
       throw upsertError
+    }
+
+    // Check if this was an update by comparing createdAt and updatedAt
+    const isUpdate = completion.updatedAt.getTime() !== completion.createdAt.getTime()
+
+    // If we uploaded a new photo and it's an update, delete the old one
+    if (isUpdate && photoUrl) {
+      const oldCompletion = await prisma.completion.findUnique({
+        where: { id: completion.id },
+        select: { photoUrl: true }
+      })
+
+      if (oldCompletion?.photoUrl && oldCompletion.photoUrl !== photoUrl) {
+        const oldPath = path.join(process.cwd(), "public", oldCompletion.photoUrl)
+        try {
+          await deleteFile(oldPath)
+        } catch (deleteError) {
+          console.error("Failed to delete old photo:", deleteError)
+          // Continue - old file will be cleaned up by periodic job
+        }
+      }
     }
 
     return NextResponse.json(
@@ -316,26 +308,16 @@ export async function POST(request: NextRequest) {
         memberName: completion.member.displayName,
         updated: isUpdate,
       },
-      { status: isUpdate ? 200 : 201 }
+      { status: isUpdate ? 200 : 201, headers: rateLimitHeaders }
     )
   } catch (error) {
-    console.error("Completion creation error:", error)
-
-    // Clean up uploaded file on error
+    // Error-path cleanup of any uploaded file (orphan prevention)
     if (uploadedFilePath) {
       try {
         await deleteFile(uploadedFilePath)
       } catch {}
     }
-
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      return Errors.conflict("Completion already exists")
-    }
-
-    return Errors.internal()
+    throw error
   } finally {
     // Clean up temp file if it wasn't moved
     if (tempFilePath && !uploadedFilePath) {
@@ -344,7 +326,7 @@ export async function POST(request: NextRequest) {
       } catch {}
     }
   }
-}
+})
 
 /**
  * GET /api/completions
@@ -353,92 +335,82 @@ export async function POST(request: NextRequest) {
  * Parents can see all family completions.
  * Children can only see their own.
  */
-export async function GET(request: NextRequest) {
-  try {
-    // Authenticate
-    const authContext = await authenticate()
-    const authError = requireAuth(authContext)
-    if (authError) return authError
+export const GET = withFlatErrorHandling(async (request) => {
+  const { member } = await requireAuth()
 
-    const member = authContext!.member
+  // Parse query parameters
+  const { searchParams } = new URL(request.url)
+  const status = searchParams.get("status") as "PENDING" | "APPROVED" | "DECLINED" | null
+  const childId = searchParams.get("childId")
 
-    // Parse query parameters
-    const { searchParams } = new URL(request.url)
-    const status = searchParams.get("status") as "PENDING" | "APPROVED" | "DECLINED" | null
-    const childId = searchParams.get("childId")
+  // Build where clause
+  const where: Prisma.CompletionWhereInput = {}
 
-    // Build where clause
-    const where: Prisma.CompletionWhereInput = {}
+  if (member.role === "PARENT") {
+    // Parent can see all completions in family
+    where.chore = { familyId: member.familyId }
 
-    if (member.role === "PARENT") {
-      // Parent can see all completions in family
-      where.chore = { familyId: member.familyId }
-
-      // Filter by specific child if requested
-      if (childId) {
-        if (!isValidUUID(childId)) {
-          return Errors.badRequest("Invalid child ID")
-        }
-        
-        // Verify the child belongs to the parent's family
-        const childMember = await prisma.member.findFirst({
-          where: {
-            id: childId,
-            familyId: member.familyId,
-            role: "CHILD",
-            deletedAt: null,
-          },
-        })
-        
-        if (!childMember) {
-          return Errors.forbidden("Invalid child ID")
-        }
-        
-        where.memberId = childId
+    // Filter by specific child if requested
+    if (childId) {
+      if (!isValidUUID(childId)) {
+        throw Errors.badRequest("Invalid child ID")
       }
-    } else {
-      // Child can only see their own
-      where.memberId = member.id
-    }
 
-    // Filter by status
-    if (status) {
-      where.status = status
-    }
-
-    // Get completions
-    const completions = await prisma.completion.findMany({
-      where,
-      orderBy: { completedAt: "desc" },
-      include: {
-        chore: {
-          select: { id: true, title: true, points: true },
+      // Verify the child belongs to the parent's family
+      const childMember = await prisma.member.findFirst({
+        where: {
+          id: childId,
+          familyId: member.familyId,
+          role: "CHILD",
+          deletedAt: null,
         },
-        member: {
-          select: { id: true, displayName: true },
-        },
-      },
-    })
+      })
 
-    return NextResponse.json({
-      completions: completions.map((c) => ({
-        id: c.id,
-        choreId: c.choreId,
-        choreTitle: c.chore.title,
-        memberId: c.memberId,
-        memberName: c.member.displayName,
-        completedAt: c.completedAt.toISOString(),
-        scheduledFor: c.scheduledFor?.toISOString() || null,
-        photoUrl: c.photoUrl,
-        notes: c.notes,
-        status: c.status,
-        points: c.chore.points,
-        pointsAwarded: c.pointsAwarded,
-        approvedAt: c.approvedAt?.toISOString() || null,
-      })),
-    })
-  } catch (error) {
-    console.error("Get completions error:", error)
-    return Errors.internal()
+      if (!childMember) {
+        throw Errors.forbidden("Invalid child ID")
+      }
+
+      where.memberId = childId
+    }
+  } else {
+    // Child can only see their own
+    where.memberId = member.id
   }
-}
+
+  // Filter by status
+  if (status) {
+    where.status = status
+  }
+
+  // Get completions
+  const completions = await prisma.completion.findMany({
+    where,
+    orderBy: { completedAt: "desc" },
+    include: {
+      chore: {
+        select: { id: true, title: true, points: true },
+      },
+      member: {
+        select: { id: true, displayName: true },
+      },
+    },
+  })
+
+  return NextResponse.json({
+    completions: completions.map((c) => ({
+      id: c.id,
+      choreId: c.choreId,
+      choreTitle: c.chore.title,
+      memberId: c.memberId,
+      memberName: c.member.displayName,
+      completedAt: c.completedAt.toISOString(),
+      scheduledFor: c.scheduledFor?.toISOString() || null,
+      photoUrl: c.photoUrl,
+      notes: c.notes,
+      status: c.status,
+      points: c.chore.points,
+      pointsAwarded: c.pointsAwarded,
+      approvedAt: c.approvedAt?.toISOString() || null,
+    })),
+  })
+})
