@@ -29,7 +29,7 @@ export async function requireAuth(): Promise<AuthContext> {
   }
 
   const member = await prisma.member.findUnique({
-    where: { username: session.user.email },
+    where: { userId: session.user.id },
   })
 
   if (!member || member.deletedAt) {

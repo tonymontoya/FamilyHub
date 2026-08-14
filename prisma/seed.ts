@@ -1,4 +1,5 @@
 import { PrismaClient, Role } from '@prisma/client'
+import { randomUUID } from 'crypto'
 
 const prisma = new PrismaClient()
 
@@ -13,11 +14,20 @@ async function main() {
   })
   console.log(`Created family: ${family.name}`)
 
-  // Create parent user (via Better-Auth will be separate)
-  // For now, we'll create the member record
+  // Create parent user (Better-Auth User row) + linked member
+  const parentUser = await prisma.user.create({
+    data: {
+      id: randomUUID(),
+      email: 'demo-parent@familyhub.local',
+      name: 'Demo Parent',
+      username: 'demo-parent',
+      emailVerified: true,
+    },
+  })
   const parent = await prisma.member.create({
     data: {
       familyId: family.id,
+      userId: parentUser.id,
       role: Role.PARENT,
       username: 'demo-parent',
       displayName: 'Demo Parent',
@@ -25,10 +35,20 @@ async function main() {
   })
   console.log(`Created parent: ${parent.displayName}`)
 
-  // Create child
+  // Create child user + linked member
+  const childUser = await prisma.user.create({
+    data: {
+      id: randomUUID(),
+      email: 'demo-child@familyhub.local',
+      name: 'Demo Child',
+      username: 'demo-child',
+      emailVerified: true,
+    },
+  })
   const child = await prisma.member.create({
     data: {
       familyId: family.id,
+      userId: childUser.id,
       role: Role.CHILD,
       username: 'demo-child',
       displayName: 'Demo Child',

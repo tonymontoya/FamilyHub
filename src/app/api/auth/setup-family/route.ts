@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
 
     // Check if user already has a member record (idempotency)
     const existingMember = await prisma.member.findUnique({
-      where: { username },
+      where: { userId: session.user.id },
     })
 
     if (existingMember) {
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
       const txResult = await prisma.$transaction(async (tx) => {
         // Double-check within transaction (prevents race condition)
         const existingInTx = await tx.member.findUnique({
-          where: { username },
+          where: { userId: session.user.id },
         })
 
         if (existingInTx) {
@@ -146,6 +146,7 @@ export async function POST(request: NextRequest) {
         const member = await tx.member.create({
           data: {
             familyId: family.id,
+            userId: session.user.id,
             role: "PARENT",
             username,
             displayName: normalizedParentName,
@@ -174,7 +175,7 @@ export async function POST(request: NextRequest) {
       ) {
         // Another request won the race - fetch the existing record
         const raceConditionMember = await prisma.member.findUnique({
-          where: { username },
+          where: { userId: session.user.id },
         })
 
         if (raceConditionMember) {

@@ -64,6 +64,7 @@ async function seedTestUser() {
     await prisma.member.create({
       data: {
         familyId: family.id,
+        userId: user.id,
         username: TEST_USER.email,
         displayName: TEST_USER.name,
         role: 'PARENT',

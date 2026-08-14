@@ -28,6 +28,7 @@ model Family {
 model Member {
   id          String    @id @default(uuid())
   familyId    String    @map("family_id")
+  userId      String    @unique @map("user_id")
   role        Role
   username    String    @unique
   displayName String    @map("display_name")
@@ -37,6 +38,7 @@ model Member {
   deletedAt   DateTime? @map("deleted_at")
 
   family              Family             @relation(fields: [familyId], references: [id])
+  user                User               @relation(fields: [userId], references: [id])
   completions         Completion[]
   approvedCompletions Completion[]       @relation("CompletionApprover")
   todos               Todo[]
@@ -360,6 +362,7 @@ model User {
   updatedAt       DateTime  @updatedAt
   sessions        Session[]
   accounts        Account[]
+  member          Member?
 
   @@unique([email])
   @@map("user")

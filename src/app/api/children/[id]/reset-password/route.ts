@@ -45,7 +45,7 @@ export async function POST(
 
     // Get parent's member record
     const parentMember = await prisma.member.findUnique({
-      where: { username: session.user.email },
+      where: { userId: session.user.id },
     })
 
     if (!parentMember || parentMember.role !== "PARENT") {

@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     // Get parent's member record to verify they're a parent
     const parentMember = await prisma.member.findUnique({
-      where: { username: session.user.email },
+      where: { userId: session.user.id },
       include: { family: true },
     })
 
@@ -144,13 +144,18 @@ export async function POST(request: NextRequest) {
     // This ensures uniqueness and prevents email delivery
     const syntheticEmail = `child-${parentMember.familyId}-${normalizedUsername}@familyhub.local`
 
-    // Create child user in Better-Auth via internal API
+    // Create child user in Better-Auth via internal API.
+    // The Origin header is required: Better-Auth enforces CSRF/origin checks and
+    // a server-side fetch omits Origin by default (would 403 MISSING_OR_NULL_ORIGIN).
     const baseURL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
     const createUserResponse = await fetch(
       `${baseURL}/api/auth/sign-up/email`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Origin": baseURL,
+        },
         body: JSON.stringify({
           email: syntheticEmail,
           password,
@@ -188,6 +193,7 @@ export async function POST(request: NextRequest) {
       childMember = await prisma.member.create({
         data: {
           familyId: parentMember.familyId,
+          userId: authUser.id,
           role: "CHILD",
           username: normalizedUsername,
           displayName: sanitizedDisplayName,
@@ -282,7 +288,7 @@ export async function GET() {
 
     // Get parent's member record
     const parentMember = await prisma.member.findUnique({
-      where: { username: session.user.email },
+      where: { userId: session.user.id },
     })
 
     if (!parentMember || parentMember.role !== "PARENT") {

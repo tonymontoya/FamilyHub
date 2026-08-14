@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
     
     // Get user's family
     const member = await prisma.member.findUnique({
-      where: { username: session.user.email },
+      where: { userId: session.user.id },
       select: { familyId: true },
     })
     

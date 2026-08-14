@@ -54,15 +54,18 @@ export async function createTestFamily(name: string) {
 
 /**
  * Create a test parent member
+ * userId must reference an existing Better-Auth user row (required FK).
  */
 export async function createTestParent(
   familyId: string,
+  userId: string,
   username: string,
   displayName: string
 ) {
   return prisma.member.create({
     data: {
       familyId,
+      userId,
       role: 'PARENT',
       username: `${TEST_PREFIX}${username}`,
       displayName,
@@ -72,15 +75,18 @@ export async function createTestParent(
 
 /**
  * Create a test child member
+ * userId must reference an existing Better-Auth user row (required FK).
  */
 export async function createTestChild(
   familyId: string,
+  userId: string,
   username: string,
   displayName: string
 ) {
   return prisma.member.create({
     data: {
       familyId,
+      userId,
       role: 'CHILD',
       username: `${TEST_PREFIX}${username}`,
       displayName,

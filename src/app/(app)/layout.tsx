@@ -19,9 +19,9 @@ export default async function AppLayout({
     redirect("/login")
   }
 
-  // Fetch member by username (which is the email) for navigation
+  // Fetch member by Better-Auth user id for navigation
   const member = await prisma.member.findUnique({
-    where: { username: session.user.email },
+    where: { userId: session.user.id },
     select: {
       id: true,
       displayName: true,

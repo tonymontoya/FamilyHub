@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     // Get member
     const member = await prisma.member.findUnique({
-      where: { username: session.user.email },
+      where: { userId: session.user.id },
       include: { family: true },
     })
 
