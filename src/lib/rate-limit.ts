@@ -188,6 +188,12 @@ export const rateLimits = {
   
   // Reorder
   reorder: { limit: 30, window: 60 },      // 30 reorders per minute
+
+  // Chores / completions / children (match the previous per-route limits)
+  choreCreate: { limit: 10, window: 60 },   // 10 chore creations per minute
+  completion: { limit: 20, window: 3600 },  // 20 completions per hour
+  approval: { limit: 30, window: 3600 },    // 30 approvals/declines per hour
+  childCreate: { limit: 5, window: 60 },    // 5 child accounts per minute
 } as const
 
 export type RateLimitAction = keyof typeof rateLimits

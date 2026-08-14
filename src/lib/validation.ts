@@ -35,6 +35,16 @@ export const uuidSchema = z
   .string({ message: "ID is required" })
   .uuid("Invalid ID format")
 
+/**
+ * Validate UUID format (accepts any valid UUID version 1-5).
+ * Imperative helper for non-Zod code paths (e.g. route params).
+ */
+export function isValidUUID(str: string): boolean {
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  return uuidRegex.test(str)
+}
+
 // Common field schemas (aligned with @db.VarChar in schema)
 export const titleSchema = nonEmptyString(100, "Title")
 
