@@ -5,9 +5,10 @@
  * Compatible with Google Calendar, Apple Calendar, Outlook
  */
 
-import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
+import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { requireAuth } from "@/lib/auth-utils"
+import { Errors, withFlatErrorHandling } from "@/lib/errors"
 import { format } from "date-fns"
 
 /**
@@ -118,82 +119,57 @@ function escapeICS(text: string): string {
  * - start: Start date (YYYY-MM-DD)
  * - end: End date (YYYY-MM-DD)
  */
-export async function GET(request: NextRequest) {
-  try {
-    // Get session
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    })
-    
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-    
-    // Get user's family
-    const member = await prisma.member.findUnique({
-      where: { userId: session.user.id },
-      select: { familyId: true },
-    })
-    
-    if (!member) {
-      return NextResponse.json({ error: "Family not found" }, { status: 404 })
-    }
-    
-    // Parse query params
-    const { searchParams } = new URL(request.url)
-    const startParam = searchParams.get("start")
-    const endParam = searchParams.get("end")
-    
-    // Default to current month if no dates provided
-    const startDate = startParam 
-      ? new Date(startParam) 
-      : new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    
-    const endDate = endParam 
-      ? new Date(endParam) 
-      : new Date(new Date().getFullYear(), new Date().getMonth() + 3, 0) // 3 months default
-    
-    // Fetch events
-    const events = await prisma.calendarEvent.findMany({
-      where: {
-        familyId: member.familyId,
-        deletedAt: null,
-        OR: [
-          // Events within date range
-          {
-            startDate: {
-              gte: startDate,
-              lte: endDate,
-            },
+export const GET = withFlatErrorHandling(async (request) => {
+  const { member } = await requireAuth()
+
+  // Parse query params
+  const { searchParams } = new URL(request.url)
+  const startParam = searchParams.get("start")
+  const endParam = searchParams.get("end")
+
+  // Default to current month if no dates provided
+  const startDate = startParam
+    ? new Date(startParam)
+    : new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+
+  const endDate = endParam
+    ? new Date(endParam)
+    : new Date(new Date().getFullYear(), new Date().getMonth() + 3, 0) // 3 months default
+
+  // Fetch events
+  const events = await prisma.calendarEvent.findMany({
+    where: {
+      familyId: member.familyId,
+      deletedAt: null,
+      OR: [
+        // Events within date range
+        {
+          startDate: {
+            gte: startDate,
+            lte: endDate,
           },
-          // Recurring events that might overlap
-          {
-            isRecurring: true,
-            OR: [
-              { recurrenceEnd: null },
-              { recurrenceEnd: { gte: startDate } },
-            ],
-          },
-        ],
-      },
-      orderBy: { startDate: "asc" },
-    })
-    
-    // Generate ICS content
-    const icsContent = generateICS(events)
-    
-    // Return as downloadable file
-    return new NextResponse(icsContent, {
-      headers: {
-        "Content-Type": "text/calendar; charset=utf-8",
-        "Content-Disposition": `attachment; filename="family-hub-calendar-${format(new Date(), "yyyy-MM-dd")}.ics"`,
-      },
-    })
-  } catch (error) {
-    console.error("Calendar export error:", error)
-    return NextResponse.json(
-      { error: "Failed to export calendar" },
-      { status: 500 }
-    )
-  }
-}
+        },
+        // Recurring events that might overlap
+        {
+          isRecurring: true,
+          OR: [
+            { recurrenceEnd: null },
+            { recurrenceEnd: { gte: startDate } },
+          ],
+        },
+      ],
+    },
+    orderBy: { startDate: "asc" },
+  })
+
+  // Generate ICS content
+  const icsContent = generateICS(events)
+
+  // Return as downloadable file
+  return new NextResponse(icsContent, {
+    headers: {
+      "Content-Type": "text/calendar; charset=utf-8",
+      "Content-Disposition": `attachment; filename="family-hub-calendar-${format(new Date(), "yyyy-MM-dd")}.ics"`,
+    },
+  })
+})
