@@ -35,15 +35,20 @@ function cleanupInFlightReminders() {
  * Check for reminders that need to be sent
  */
 export const GET = withErrorHandling(async (request) => {
-  // Verify cron secret is required in production
+  // Verify cron secret. Fail closed in production.
   const authHeader = request.headers.get("authorization")
   const cronSecret = process.env.CRON_SECRET
+  const isProduction = process.env.NODE_ENV === "production"
 
   if (!cronSecret) {
-    console.warn("CRON_SECRET not set - cron job is insecure!")
-  }
-  
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (isProduction) {
+      // Missing secret in production is a misconfiguration — refuse to run.
+      console.error("CRON_SECRET not set — refusing to run reminder check in production")
+      return new Response("Unauthorized", { status: 401 })
+    }
+    // Dev convenience: allow without a secret, but warn loudly.
+    console.warn("CRON_SECRET not set — cron endpoint unsecured (allowed in development)")
+  } else if (authHeader !== `Bearer ${cronSecret}`) {
     return new Response("Unauthorized", { status: 401 })
   }
 
