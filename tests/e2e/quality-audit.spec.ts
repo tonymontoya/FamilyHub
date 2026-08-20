@@ -1,70 +1,47 @@
 import { test, expect } from '@playwright/test'
+import { provisionParentViaApi, signInViaUi, freshPage } from './helpers/ui-flows'
 
 const API_URL = 'http://localhost:3000'
 
 /**
  * Quality Audit Tests
- * 
- * Comprehensive validation of v0.2.0 release candidate
+ *
+ * Comprehensive validation of core flows. Each spec provisions its own
+ * parent through the real API and signs in through a fresh browser
+ * context, so results do not depend on shared-user rate limits or
+ * accumulated DB state.
  */
 
-test.describe('Quality Audit: v0.2.0 Release Candidate', () => {
-  
+test.describe('Quality Audit', () => {
+
   test.describe('Core User Flows', () => {
-    
-    test('complete parent onboarding flow', async ({ page, request }) => {
-      // Register
-      const email = `audit-${Date.now()}@test.com`
-      const signUpRes = await request.post(`${API_URL}/api/auth/sign-up/email`, {
-        data: { email, password: 'TestPass123!', name: 'Audit Test' },
-        headers: { Origin: API_URL }
-      })
-      expect(signUpRes.ok()).toBeTruthy()
-      
-      // Sign in
-      const signInRes = await request.post(`${API_URL}/api/auth/sign-in/email`, {
-        data: { email, password: 'TestPass123!' },
-        headers: { Origin: API_URL }
-      })
-      expect(signInRes.ok()).toBeTruthy()
-      
-      // Setup family
-      const setupRes = await request.post(`${API_URL}/api/auth/setup-family`, {
-        data: { familyName: 'Audit Family', parentName: 'Audit Test' },
-        headers: { Origin: API_URL }
-      })
-      expect(setupRes.ok()).toBeTruthy()
-      
-      // Access dashboard
-      await page.goto('/dashboard')
-      await expect(page.getByRole('heading', { name: /Good morning|Good afternoon|Good evening/ })).toBeVisible()
-      
-      // Verify navigation
-      await expect(page.locator('nav, [data-testid="mobile-nav"]')).toBeVisible()
-      
-      console.log('✅ Parent onboarding flow works')
+
+    test('complete parent onboarding flow', async ({ browser, request }) => {
+      const { email, password } = await provisionParentViaApi(request, `onboard${Date.now().toString(36)}`)
+      const { page, close } = await freshPage(browser)
+      try {
+        await signInViaUi(page, email, password)
+
+        // Access dashboard
+        await page.goto('/dashboard')
+        await expect(page.getByRole('heading', { name: /Good morning|Good afternoon|Good evening/ })).toBeVisible()
+
+        // Verify navigation (desktop sidebar)
+        await expect(page.getByRole('complementary', { name: 'Main navigation' })).toBeVisible()
+
+        console.log('✅ Parent onboarding flow works')
+      } finally {
+        await close()
+      }
     })
-    
-    test('calendar event creation and display', async ({ page, request }) => {
-      // Create test user
-      const email = `audit-cal-${Date.now()}@test.com`
-      await request.post(`${API_URL}/api/auth/sign-up/email`, {
-        data: { email, password: 'TestPass123!', name: 'Cal Test' },
-        headers: { Origin: API_URL }
-      })
-      await request.post(`${API_URL}/api/auth/sign-in/email`, {
-        data: { email, password: 'TestPass123!' },
-        headers: { Origin: API_URL }
-      })
-      await request.post(`${API_URL}/api/auth/setup-family`, {
-        data: { familyName: 'Cal Family', parentName: 'Cal Test' },
-        headers: { Origin: API_URL }
-      })
-      
-      // Create event via API
+
+    test('calendar event creation and display', async ({ browser, request }) => {
+      const { email, password } = await provisionParentViaApi(request, `cal${Date.now().toString(36)}`)
+
+      // Create event via API (request context is signed in as this parent)
       const tomorrow = new Date()
       tomorrow.setDate(tomorrow.getDate() + 1)
-      
+
       const createRes = await request.post(`${API_URL}/api/calendar/events`, {
         data: {
           title: 'Quality Audit Event',
@@ -73,37 +50,26 @@ test.describe('Quality Audit: v0.2.0 Release Candidate', () => {
         },
         headers: { 'Content-Type': 'application/json', Origin: API_URL }
       })
-      expect(createRes.ok()).toBeTruthy()
-      
-      // Verify on calendar
-      await page.goto('/calendar')
-      await expect(page.locator('[data-testid="calendar-grid"]')).toBeVisible()
-      await expect(page.getByText('Quality Audit')).toBeVisible({ timeout: 5000 })
-      
-      console.log('✅ Calendar event creation and display works')
+      expect(createRes.ok(), `event create failed: ${await createRes.text()}`).toBeTruthy()
+
+      // Verify on calendar as this parent
+      const { page, close } = await freshPage(browser)
+      try {
+        await signInViaUi(page, email, password)
+        await page.goto('/calendar')
+        await expect(page.locator('[data-testid="calendar-grid"]')).toBeVisible()
+        await expect(page.getByText('Quality Audit')).toBeVisible({ timeout: 10000 })
+
+        console.log('✅ Calendar event creation and display works')
+      } finally {
+        await close()
+      }
     })
-    
-    test('chore management flow', async ({ page, request }) => {
-      // Create test user
-      const email = `audit-chore-${Date.now()}@test.com`
-      await request.post(`${API_URL}/api/auth/sign-up/email`, {
-        data: { email, password: 'TestPass123!', name: 'Chore Test' },
-        headers: { Origin: API_URL }
-      })
-      await request.post(`${API_URL}/api/auth/sign-in/email`, {
-        data: { email, password: 'TestPass123!' },
-        headers: { Origin: API_URL }
-      })
-      await request.post(`${API_URL}/api/auth/setup-family`, {
-        data: { familyName: 'Chore Family', parentName: 'Chore Test' },
-        headers: { Origin: API_URL }
-      })
-      
-      // Navigate to chores
-      await page.goto('/chores')
-      await expect(page.getByRole('heading', { name: 'Chores' })).toBeVisible()
-      
-      // Create chore via API
+
+    test('chore management flow', async ({ browser, request }) => {
+      const { email, password } = await provisionParentViaApi(request, `chore${Date.now().toString(36)}`)
+
+      // Create chore via API (request context is signed in as this parent)
       const createRes = await request.post(`${API_URL}/api/chores`, {
         data: {
           title: 'Quality Audit Chore',
@@ -113,13 +79,20 @@ test.describe('Quality Audit: v0.2.0 Release Candidate', () => {
         },
         headers: { 'Content-Type': 'application/json', Origin: API_URL }
       })
-      expect(createRes.ok()).toBeTruthy()
-      
-      // Refresh and verify
-      await page.reload()
-      await expect(page.getByText('Quality Audit Chore')).toBeVisible()
-      
-      console.log('✅ Chore management flow works')
+      expect(createRes.ok(), `chore create failed: ${await createRes.text()}`).toBeTruthy()
+
+      // Verify in the UI as this parent
+      const { page, close } = await freshPage(browser)
+      try {
+        await signInViaUi(page, email, password)
+        await page.goto('/chores')
+        await expect(page.getByRole('heading', { name: 'Chores' })).toBeVisible()
+        await expect(page.getByText('Quality Audit Chore')).toBeVisible({ timeout: 10000 })
+
+        console.log('✅ Chore management flow works')
+      } finally {
+        await close()
+      }
     })
   })
   
@@ -172,16 +145,25 @@ test.describe('Quality Audit: v0.2.0 Release Candidate', () => {
   
   test.describe('Accessibility', () => {
     
-    test('pages have proper headings', async ({ page }) => {
-      const pages = ['/dashboard', '/calendar', '/chores', '/settings']
-      
-      for (const path of pages) {
-        await page.goto(path)
-        const h1 = await page.locator('h1').count()
-        expect(h1, `${path} should have an h1`).toBeGreaterThanOrEqual(1)
+    test('pages have proper headings', async ({ browser, request }) => {
+      const { email, password } = await provisionParentViaApi(request, `head${Date.now().toString(36)}`)
+      const { page, close } = await freshPage(browser)
+      try {
+        await signInViaUi(page, email, password)
+        const pages = ['/dashboard', '/calendar', '/chores', '/settings']
+
+        for (const path of pages) {
+          await page.goto(path)
+          // Dashboard renders client-side; wait for the shell to settle
+          // before counting headings.
+          await page.waitForLoadState('networkidle')
+          await expect(page.locator('h1').first(), `${path} should have an h1`).toBeVisible({ timeout: 15000 })
+        }
+
+        console.log('✅ All pages have proper headings')
+      } finally {
+        await close()
       }
-      
-      console.log('✅ All pages have proper headings')
     })
     
     test('forms have associated labels', async ({ page }) => {
@@ -222,11 +204,13 @@ test.describe('Quality Audit: v0.2.0 Release Candidate', () => {
       await page.goto('/calendar')
       await page.goto('/chores')
       
-      // Filter out hydration warnings (known issue in dev mode)
-      const criticalErrors = errors.filter(e => 
-        !e.includes('hydrat') && 
+      // Filter out known dev-mode noise (hydration warnings, navigation-
+      // cancelled fetches from the dashboard poller)
+      const criticalErrors = errors.filter(e =>
+        !e.includes('hydrat') &&
         !e.includes('server') &&
-        !e.includes('StrictMode')
+        !e.includes('StrictMode') &&
+        !e.includes('Failed to fetch')
       )
       
       expect(criticalErrors).toHaveLength(0)

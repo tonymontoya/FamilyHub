@@ -197,7 +197,7 @@ export default function CreateChorePage() {
           description: data.description,
           points: data.points,
           recurrenceRule,
-          assigneeId: data.assigneeId || undefined,
+          assigneeId: data.assigneeId && data.assigneeId !== "none" ? data.assigneeId : undefined,
         }),
       })
 
@@ -393,7 +393,7 @@ export default function CreateChorePage() {
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">
+                        <SelectItem value="none">
                           Anyone (no specific assignee)
                         </SelectItem>
                         {familyMembers.map((member) => (

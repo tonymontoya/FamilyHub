@@ -50,20 +50,22 @@ export function Sidebar({ userRole, collapsed, onCollapse }: SidebarProps) {
         {/* Collapse toggle */}
         <div className="border-t p-2">
           <Tooltip>
-            <TooltipTrigger>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-full"
-                onClick={() => onCollapse(!collapsed)}
-                aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              >
-                {collapsed ? (
-                  <ChevronRight className="h-4 w-4" />
-                ) : (
-                  <ChevronLeft className="h-4 w-4" />
-                )}
-              </Button>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-full"
+                  onClick={() => onCollapse(!collapsed)}
+                  aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                />
+              }
+            >
+              {collapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
             </TooltipTrigger>
             <TooltipContent side="right">
               {collapsed ? "Expand" : "Collapse"}

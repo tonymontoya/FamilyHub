@@ -41,29 +41,30 @@ export function NotificationBell({ initialCount }: NotificationBellProps) {
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      <DropdownMenuTrigger>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative"
-          aria-label={`Notifications${pendingCount > 0 ? `, ${pendingCount} pending` : ""}`}
-        >
-          <Bell className="h-5 w-5" />
-          {showBadge && (
-            <span
-              className={cn(
-                "absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-medium",
-                isError
-                  ? "bg-destructive text-destructive-foreground"
-                  : "bg-primary text-primary-foreground"
-              )}
-            >
-              {displayCount}
-            </span>
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative"
+            aria-label={`Notifications${pendingCount > 0 ? `, ${pendingCount} pending` : ""}`}
+          />
+        }
+      >
+        <Bell className="h-5 w-5" />
+        {showBadge && (
+          <span
+            className={cn(
+              "absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-medium",
+              isError
+                ? "bg-destructive text-destructive-foreground"
+                : "bg-primary text-primary-foreground"
+            )}
+          >
+            {displayCount}
+          </span>
+        )}
+      </DropdownMenuTrigger>      <DropdownMenuContent align="end" className="w-80">
         <DropdownMenuLabel>Notifications</DropdownMenuLabel>
         <DropdownMenuSeparator />
         

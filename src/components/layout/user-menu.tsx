@@ -38,21 +38,25 @@ export function UserMenu({ user }: UserMenuProps) {
     <TooltipProvider>
       <DropdownMenu>
         <Tooltip>
-          <TooltipTrigger>
-            <DropdownMenuTrigger>
-              <Button
-                variant="ghost"
-                className="relative h-9 w-9 rounded-full"
-                aria-label={`User menu: ${user.name}`}
-              >
-                <Avatar className="h-9 w-9">
-                  <AvatarImage src={user.image || undefined} alt={user.name} />
-                  <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
+          <TooltipTrigger
+            render={
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    className="relative h-9 w-9 rounded-full"
+                    aria-label={`User menu: ${user.name}`}
+                  />
+                }
+              />
+            }
+          >
+            <Avatar className="h-9 w-9">
+              <AvatarImage src={user.image || undefined} alt={user.name} />
+              <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
           </TooltipTrigger>
           <TooltipContent side="bottom">{user.name}</TooltipContent>
         </Tooltip>

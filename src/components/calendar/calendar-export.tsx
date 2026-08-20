@@ -64,11 +64,11 @@ export function CalendarExport({ currentDate }: CalendarExportProps) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger>
-        <Button variant="outline" size="sm" disabled={isExporting}>
-          <Download className="mr-2 h-4 w-4" />
-          Export
-        </Button>
+      <DropdownMenuTrigger
+        render={<Button variant="outline" size="sm" disabled={isExporting} />}
+      >
+        <Download className="mr-2 h-4 w-4" />
+        Export
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => handleExport(1)}>
