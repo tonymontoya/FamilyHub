@@ -5,6 +5,59 @@ All notable changes to Family Hub will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-08-20
+
+The API-consolidation release. Every route now speaks the same response
+envelope, several real UI defects found by new end-to-end coverage are
+fixed, and the half-built Todos module is removed. **Breaking API change:**
+chores, completions, dashboard, children, and auth/setup-family responses
+changed shape (details below) — the Next.js client was migrated in the same
+release, so the shipped app needs no coordination, but external API
+consumers must adapt.
+
+### Breaking Changed
+- **Unified response envelope.** `chores`, `chores/today`, `completions`
+  (+ `approve`/`decline`), `dashboard`, `children` (+ `[id]`,
+  `reset-password`), and `auth/setup-family` now return
+  `{ "success": true, "data": { ... } }` on success (201 for creates) and
+  `{ "error": { "code", "message", "requestId" } }` on failure — matching
+  the lists/calendar routes. The temporary flat renderer
+  (`withFlatErrorHandling`/`handleApiErrorFlat`) is deleted; one error
+  format remains.
+
+### Removed
+- **Todos module** (never functional): the `/todos` page shell, its nav
+  entries and `overdueTodos` badge type, the `Todo` model (migration drops
+  the `todos` table), and seed/factory references. There was no API; every
+  UI action dead-ended. A dedicated tasks feature can be rebuilt on the
+  now-uniform envelope if wanted.
+- Dead `components/chores/today-chores.tsx` (unimported since the
+  dashboard refactor).
+
+### Fixed
+- **`/chores/new` crashed on load** (runtime error boundary, page
+  unusable): Base UI rejects `<SelectItem value="">`, and the "Anyone (no
+  specific assignee)" option used an empty-string value. It now uses a
+  `none` sentinel translated to `undefined` on submit.
+- **App-wide React hydration errors from nested `<button>` elements.**
+  `user-menu` (tooltip trigger → menu trigger → Button, triple-nested),
+  `notification-bell`, the sidebar collapse toggle, and `calendar-export`
+  each rendered a button inside a button. All now compose via Base UI's
+  `render` prop. Hydration no longer re-mounts the tree (which had made
+  filled-in form fields vanish).
+
+### Added
+- **UI-level E2E safety net** (7 new specs/helpers) covering chores
+  create/error-toast/archive, children create/duplicate-409/reset/delete,
+  approvals review flow, and dashboard content rendering — each provisioning
+  its own family through the real API and signing in through the login form,
+  so results are independent of shared-user rate limits.
+
+### Changed
+- `quality-audit` E2E specs repaired: per-test user isolation, desktop nav
+  locator (the sidebar is an `aside`, not `nav`), heading assertions that
+  wait for client-rendered content, and dev-mode fetch-noise filtering.
+
 ## [0.2.2] - 2026-08-14
 
 A patch release fixing the last user-facing correctness bug (recurring calendar

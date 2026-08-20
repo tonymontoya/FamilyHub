@@ -145,9 +145,10 @@ We welcome contributions! See [CONTRIBUTING.md](./docs/CONTRIBUTING.md) for:
 
 | Phase | Version | Timeline | Focus |
 |-------|---------|----------|-------|
-| v0.1 MVP | ✅ | Released | Chores, Todos, Lists, Dashboard, Points |
+| v0.1 MVP | ✅ | Released | Chores, Lists, Dashboard, Points |
 | v0.2 | ✅ | Released | **Calendar, Event Reminders** |
-| v0.3 | 🚧 | Q3 2026 | Meal planning, Plans module, Home Assistant integration |
+| v0.3 | ✅ | Released | **Unified API envelope**, UI stability fixes, Todos module removed |
+| v0.4 | 🚧 | Q3 2026 | Meal planning, Rewards economy, Home Assistant integration |
 | v1.0 | 🚧 | Q4 2026 | Native apps, advanced gamification, plugin system |
 
 ## 📜 License
