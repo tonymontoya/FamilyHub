@@ -5,13 +5,12 @@
  * Includes completion status and stats
  */
 
-import { NextResponse } from "next/server"
 import { startOfDay, endOfDay, startOfWeek, endOfWeek } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/auth-utils"
-import { withFlatErrorHandling } from "@/lib/errors"
+import { withErrorHandling, successResponse } from "@/lib/errors"
 
-export const GET = withFlatErrorHandling(async () => {
+export const GET = withErrorHandling(async () => {
   const { member } = await requireAuth()
 
   const today = new Date()
@@ -97,7 +96,7 @@ export const GET = withFlatErrorHandling(async () => {
 
   const completedToday = choresWithStatus.filter((c) => c.status === "APPROVED").length
 
-  return NextResponse.json({
+  return successResponse({
     chores: choresWithStatus,
     stats: {
       totalPoints: totalPointsResult._sum.pointsAwarded || 0,

@@ -64,8 +64,9 @@ test.describe('Child login', () => {
       expect(choresRes.status(), `chores/today status: ${await choresRes.text()}`).toBe(200)
 
       const body = await choresRes.json()
-      expect(body).toHaveProperty('chores')
-      expect(body).toHaveProperty('stats')
+      expect(body).toHaveProperty('success', true)
+      expect(body.data).toHaveProperty('chores')
+      expect(body.data).toHaveProperty('stats')
     } finally {
       await childContext.dispose()
     }

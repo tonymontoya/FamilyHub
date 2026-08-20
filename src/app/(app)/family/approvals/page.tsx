@@ -62,8 +62,8 @@ export default function ApprovalsPage() {
         throw new Error("Failed to fetch pending completions")
       }
 
-      const data = await response.json()
-      setCompletions(data.completions)
+      const body = await response.json()
+      setCompletions(body.data.completions)
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to load completions"
@@ -116,12 +116,12 @@ export default function ApprovalsPage() {
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || "Failed to approve completion")
+        throw new Error(error.error?.message || "Failed to approve completion")
       }
 
       const result = await response.json()
       toast.success(
-        `Approved! ${result.child.displayName} earned ${result.pointsAwarded} points.`
+        `Approved! ${result.data.child.displayName} earned ${result.data.pointsAwarded} points.`
       )
 
       setIsApproveDialogOpen(false)
@@ -155,7 +155,7 @@ export default function ApprovalsPage() {
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || "Failed to decline completion")
+        throw new Error(error.error?.message || "Failed to decline completion")
       }
 
       toast.success("Completion declined")

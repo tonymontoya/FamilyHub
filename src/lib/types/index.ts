@@ -18,7 +18,6 @@ export interface NavUser {
 export type NotificationType =
   | "pendingApprovals"
   | "pendingCompletions"
-  | "overdueTodos"
 
 /**
  * Route configuration for navigation

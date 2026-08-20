@@ -88,25 +88,6 @@ async function main() {
   })
   console.log(`Created ${chores.count} chores`)
 
-  // Create sample todos
-  const todos = await prisma.todo.createMany({
-    data: [
-      {
-        familyId: family.id,
-        title: 'Buy groceries',
-        notes: 'Milk, eggs, bread',
-        createdBy: parent.id,
-      },
-      {
-        familyId: family.id,
-        title: 'Call grandma',
-        assigneeId: child.id,
-        createdBy: parent.id,
-      },
-    ],
-  })
-  console.log(`Created ${todos.count} todos`)
-
   console.log('Seeding finished.')
 }
 

@@ -243,7 +243,9 @@ test.describe('Quality Audit', () => {
       // Test dashboard API
       const dashboard = await request.get(`${API_URL}/api/dashboard?timezone=America/Los_Angeles`)
       expect(dashboard.ok()).toBeTruthy()
-      const dashData = await dashboard.json()
+      const dashBody = await dashboard.json()
+      expect(dashBody).toHaveProperty('success', true)
+      const dashData = dashBody.data
       expect(dashData).toHaveProperty('user')
       expect(dashData).toHaveProperty('today')
       expect(dashData).toHaveProperty('meta')

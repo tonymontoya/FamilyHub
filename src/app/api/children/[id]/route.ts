@@ -1,7 +1,6 @@
-import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth, requireRole } from "@/lib/auth-utils"
-import { Errors, withFlatErrorHandling } from "@/lib/errors"
+import { Errors, withErrorHandling, successResponse } from "@/lib/errors"
 
 /**
  * DELETE /api/children/:id
@@ -9,7 +8,7 @@ import { Errors, withFlatErrorHandling } from "@/lib/errors"
  * Soft delete a child account (parent only).
  * Sets deletedAt timestamp - data retained for 30 days per FRD.
  */
-export const DELETE = withFlatErrorHandling(async (_request, context) => {
+export const DELETE = withErrorHandling(async (_request, context) => {
   const { id: childId } = await context.params
 
   const { member } = await requireAuth()
@@ -56,8 +55,7 @@ export const DELETE = withFlatErrorHandling(async (_request, context) => {
   // The Better-Auth user record remains but sessions are invalidated.
   // A background job should permanently delete data after 30 days.
 
-  return NextResponse.json({
-    success: true,
+  return successResponse({
     message: "Child account scheduled for deletion (30-day retention period)",
   })
 })

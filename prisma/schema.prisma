@@ -18,7 +18,6 @@ model Family {
 
   members Member[]
   chores  Chore[]
-  todos   Todo[]
   lists   List[]
   events  CalendarEvent[]
 
@@ -41,7 +40,6 @@ model Member {
   user                User               @relation(fields: [userId], references: [id])
   completions         Completion[]
   approvedCompletions Completion[]       @relation("CompletionApprover")
-  todos               Todo[]
   points              PointTransaction[]
   assignedChores      Chore[]
   createdLists        List[]             @relation("ListCreator")
@@ -101,28 +99,6 @@ model Completion {
   @@index([memberId, status])
   @@index([choreId, status])
   @@map("completions")
-}
-
-model Todo {
-  id          String     @id @default(uuid())
-  familyId    String     @map("family_id")
-  title       String
-  notes       String?
-  assigneeId  String?    @map("assignee_id")
-  dueDate     DateTime?  @map("due_date")
-  status      TodoStatus @default(ACTIVE)
-  createdBy   String     @map("created_by")
-  createdAt   DateTime   @default(now()) @map("created_at")
-  completedAt DateTime?  @map("completed_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
-  deletedAt   DateTime?  @map("deleted_at")
-
-  family   Family  @relation(fields: [familyId], references: [id])
-  assignee Member? @relation(fields: [assigneeId], references: [id])
-
-  @@index([familyId, assigneeId, status])
-  @@index([dueDate])
-  @@map("todos")
 }
 
 model List {
@@ -201,11 +177,6 @@ enum CompletionStatus {
   PENDING
   APPROVED
   DECLINED
-}
-
-enum TodoStatus {
-  ACTIVE
-  COMPLETED
 }
 
 enum PointType {

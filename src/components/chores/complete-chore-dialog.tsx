@@ -103,12 +103,12 @@ export function CompleteChoreDialog({
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || "Failed to submit completion")
+        throw new Error(error.error?.message || "Failed to submit completion")
       }
 
       const result = await response.json()
 
-      if (result.updated) {
+      if (result.data.updated) {
         toast.success("Completion updated!")
       } else {
         toast.success("Chore marked as complete! Waiting for parent approval.")

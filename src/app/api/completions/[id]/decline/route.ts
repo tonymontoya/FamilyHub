@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { requireAuth, requireRole } from "@/lib/auth-utils"
-import { Errors, withFlatErrorHandling } from "@/lib/errors"
+import { Errors, withErrorHandling, successResponse } from "@/lib/errors"
 import { applyRateLimit } from "@/lib/rate-limit"
 import { isValidUUID } from "@/lib/validation"
 
@@ -17,7 +16,7 @@ const declineSchema = z.object({
  * Decline a completion. Child can retry later.
  * Photos are retained for audit purposes.
  */
-export const POST = withFlatErrorHandling(async (request, context) => {
+export const POST = withErrorHandling(async (request, context) => {
   const { id: completionId } = await context.params
 
   // Validate UUID format
@@ -89,7 +88,7 @@ export const POST = withFlatErrorHandling(async (request, context) => {
     },
   })
 
-  return NextResponse.json({
+  return successResponse({
     id: updatedCompletion.id,
     status: "DECLINED",
     declinedAt: updatedCompletion.approvedAt?.toISOString(),
@@ -102,5 +101,5 @@ export const POST = withFlatErrorHandling(async (request, context) => {
       id: completion.choreId,
       title: completion.chore.title,
     },
-  }, { headers: rateLimitHeaders })
+  }, 200, rateLimitHeaders)
 })

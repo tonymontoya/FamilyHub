@@ -73,12 +73,12 @@ export function PendingApprovals({ approvals, onUpdate }: PendingApprovalsProps)
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || "Failed to approve")
+        throw new Error(error.error?.message || "Failed to approve")
       }
 
       const result = await response.json()
       toast.success(
-        `Approved! ${result.child.displayName} earned ${result.pointsAwarded} points.`
+        `Approved! ${result.data.child.displayName} earned ${result.data.pointsAwarded} points.`
       )
 
       setIsApproveDialogOpen(false)
@@ -112,7 +112,7 @@ export function PendingApprovals({ approvals, onUpdate }: PendingApprovalsProps)
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || "Failed to decline")
+        throw new Error(error.error?.message || "Failed to decline")
       }
 
       toast.success("Completion declined")

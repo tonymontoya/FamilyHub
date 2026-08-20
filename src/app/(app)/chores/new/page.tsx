@@ -150,15 +150,15 @@ export default function CreateChorePage() {
   useEffect(() => {
     async function fetchFamilyMembers() {
       try {
-        const response = await fetch("/api/children")
-        if (response.ok) {
-          const data = await response.json()
-          // Combine parent and children
-          const members = [
-            ...(data.parent ? [data.parent] : []),
-            ...data.children,
-          ]
-          setFamilyMembers(members)
+      const response = await fetch("/api/children")
+      if (response.ok) {
+        const body = await response.json()
+        // Combine parent and children
+        const members = [
+          ...(body.data.parent ? [body.data.parent] : []),
+          ...body.data.children,
+        ]
+        setFamilyMembers(members)
         } else {
           toast.error("Failed to load family members")
         }
@@ -204,7 +204,7 @@ export default function CreateChorePage() {
       const result = await response.json()
 
       if (!response.ok) {
-        toast.error(result.error || "Failed to create chore")
+        toast.error(result.error?.message || "Failed to create chore")
         return
       }
 

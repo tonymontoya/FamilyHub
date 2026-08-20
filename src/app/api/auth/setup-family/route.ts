@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
-import { Errors, withFlatErrorHandling } from "@/lib/errors"
+import { Errors, withErrorHandling, successResponse } from "@/lib/errors"
 
 // Input validation constants
 const MIN_NAME_LENGTH = 2
@@ -44,9 +43,9 @@ function validateName(
  *
  * NOTE: This route authenticates the SESSION only (not Member) because it exists to
  * create the Member record. It therefore cannot use requireAuth(), which requires an
- * existing Member. Error rendering is still unified via withFlatErrorHandling.
+ * existing Member. Error rendering is still unified via withErrorHandling.
  */
-export const POST = withFlatErrorHandling(async (request) => {
+export const POST = withErrorHandling(async (request) => {
   // Verify authentication (session exists, but Member may not yet)
   const session = await auth.api.getSession({
     headers: await headers(),
@@ -97,8 +96,7 @@ export const POST = withFlatErrorHandling(async (request) => {
 
   if (existingMember) {
     // User already set up - return existing data
-    return NextResponse.json({
-      success: true,
+    return successResponse({
       familyId: existingMember.familyId,
       memberId: existingMember.id,
       alreadyExists: true,
@@ -168,8 +166,7 @@ export const POST = withFlatErrorHandling(async (request) => {
       })
 
       if (raceConditionMember) {
-        return NextResponse.json({
-          success: true,
+        return successResponse({
           familyId: raceConditionMember.familyId,
           memberId: raceConditionMember.id,
           alreadyExists: true,
@@ -180,8 +177,7 @@ export const POST = withFlatErrorHandling(async (request) => {
     throw txError
   }
 
-  return NextResponse.json({
-    success: true,
+  return successResponse({
     familyId: result.familyId,
     memberId: result.memberId,
     alreadyExists: result.alreadyExists,

@@ -1,10 +1,9 @@
-import { NextResponse } from "next/server"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { requireAuth, requireRole } from "@/lib/auth-utils"
-import { Errors, withFlatErrorHandling } from "@/lib/errors"
+import { Errors, withErrorHandling, createdResponse, successResponse } from "@/lib/errors"
 import { applyRateLimit } from "@/lib/rate-limit"
 
 // Input validation schema
@@ -30,7 +29,7 @@ const createChildSchema = z.object({
  * Create a child account (parent only).
  * COPPA-compliant: No email collected from child, parent manages account.
  */
-export const POST = withFlatErrorHandling(async (request) => {
+export const POST = withErrorHandling(async (request) => {
   const { member } = await requireAuth()
   requireRole(member, "PARENT")
 
@@ -142,19 +141,21 @@ export const POST = withFlatErrorHandling(async (request) => {
   }
 
   // Return success with credentials (parent needs to save these)
-  return NextResponse.json({
-    success: true,
-    child: {
-      id: childMember.id,
-      username: normalizedUsername,
-      displayName,
-      familyId: member.familyId,
+  return createdResponse(
+    {
+      child: {
+        id: childMember.id,
+        username: normalizedUsername,
+        displayName,
+        familyId: member.familyId,
+      },
+      credentials: {
+        username: normalizedUsername,
+        password,
+      },
     },
-    credentials: {
-      username: normalizedUsername,
-      password,
-    },
-  }, { status: 201, headers: rateLimitHeaders })
+    rateLimitHeaders
+  )
 })
 
 /**
@@ -162,7 +163,7 @@ export const POST = withFlatErrorHandling(async (request) => {
  *
  * Get all children for the parent's family.
  */
-export const GET = withFlatErrorHandling(async () => {
+export const GET = withErrorHandling(async () => {
   const { member } = await requireAuth()
   requireRole(member, "PARENT")
 
@@ -198,5 +199,5 @@ export const GET = withFlatErrorHandling(async () => {
     },
   })
 
-  return NextResponse.json({ children, parent })
+  return successResponse({ children, parent })
 })

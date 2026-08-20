@@ -3,7 +3,7 @@ import { promises as fs } from "fs"
 import path from "path"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/auth-utils"
-import { Errors, withFlatErrorHandling } from "@/lib/errors"
+import { Errors, withErrorHandling } from "@/lib/errors"
 
 /**
  * GET /api/uploads/completions/:filename
@@ -11,7 +11,7 @@ import { Errors, withFlatErrorHandling } from "@/lib/errors"
  * Serve completion photos with authentication.
  * Only family members can view photos from their family.
  */
-export const GET = withFlatErrorHandling(async (_request, context) => {
+export const GET = withErrorHandling(async (_request, context) => {
   const { filename } = await context.params
 
   const { member } = await requireAuth()

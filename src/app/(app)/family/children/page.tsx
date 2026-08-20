@@ -37,8 +37,8 @@ export default function FamilyPage() {
       if (!response.ok) {
         throw new Error("Failed to fetch family data")
       }
-      const data = await response.json()
-      setFamilyData(data)
+      const body = await response.json()
+      setFamilyData(body.data)
     } catch {
       toast.error("Failed to load family members")
     } finally {
@@ -61,11 +61,11 @@ export default function FamilyPage() {
       const result = await response.json()
 
       if (!response.ok) {
-        toast.error(result.error || "Failed to reset password")
+        toast.error(result.error?.message || "Failed to delete account")
         return
       }
 
-      setNewPassword(result.newPassword)
+      setNewPassword(result.data.newPassword)
       toast.success("Password reset successfully")
     } catch {
       toast.error("Something went wrong")

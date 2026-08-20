@@ -48,7 +48,7 @@ test.describe('Chore completion and approval', () => {
       headers: originHeader,
     })
     expect(createChildRes.status()).toBe(201)
-    const child = (await createChildRes.json()).child
+    const child = (await createChildRes.json()).data.child
     expect(child.id).toBeTruthy()
 
     // 3. Parent creates a chore assigned to that child.
@@ -62,7 +62,7 @@ test.describe('Chore completion and approval', () => {
       headers: originHeader,
     })
     expect(createChoreRes.status()).toBe(201)
-    const chore = await createChoreRes.json()
+    const chore = (await createChoreRes.json()).data
     expect(chore.id).toBeTruthy()
 
     // 4. Child signs in (isolated context -> no parent session leakage).
@@ -80,7 +80,7 @@ test.describe('Chore completion and approval', () => {
         headers: originHeader,
       })
       expect(completeRes.status(), `complete failed: ${await completeRes.text()}`).toBe(201)
-      const completion = await completeRes.json()
+      const completion = (await completeRes.json()).data
       expect(completion.status).toBe('PENDING')
       expect(completion.choreId).toBe(chore.id)
 
@@ -90,7 +90,7 @@ test.describe('Chore completion and approval', () => {
         { data: {}, headers: originHeader }
       )
       expect(approveRes.status(), `approve failed: ${await approveRes.text()}`).toBe(200)
-      const approval = await approveRes.json()
+      const approval = (await approveRes.json()).data
       expect(approval.status).toBe('APPROVED')
       expect(approval.pointsAwarded).toBe(CHORE_POINTS)
       expect(approval.child.totalPoints).toBe(CHORE_POINTS)
@@ -99,7 +99,7 @@ test.describe('Chore completion and approval', () => {
       const listRes = await childContext.get(`${API_URL}/api/completions`)
       expect(listRes.status()).toBe(200)
       const listBody = await listRes.json()
-      const mine = listBody.completions.find((c: { id: string }) => c.id === completion.id)
+      const mine = listBody.data.completions.find((c: { id: string }) => c.id === completion.id)
       expect(mine, 'approved completion not visible to child').toBeTruthy()
       expect(mine.status).toBe('APPROVED')
       expect(mine.pointsAwarded).toBe(CHORE_POINTS)

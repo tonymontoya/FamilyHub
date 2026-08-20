@@ -195,10 +195,11 @@ export function useDashboard(
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || "Failed to fetch dashboard")
+          throw new Error(errorData.error?.message || "Failed to fetch dashboard")
         }
 
-        const newData: DashboardData = await response.json()
+        const body = await response.json()
+        const newData: DashboardData = body.data
         setData(newData)
         saveCachedData(newData)
         setLastUpdated(new Date())

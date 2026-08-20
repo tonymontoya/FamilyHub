@@ -23,11 +23,7 @@ export async function cleanupTestData() {
   await prisma.completion.deleteMany({
     where: { member: { username: { startsWith: TEST_PREFIX } } },
   })
-  
-  await prisma.todo.deleteMany({
-    where: { family: { name: { startsWith: TEST_PREFIX } } },
-  })
-  
+
   await prisma.chore.deleteMany({
     where: { family: { name: { startsWith: TEST_PREFIX } } },
   })
@@ -114,31 +110,6 @@ export async function createTestChore(
       description: options.description,
       points: options.points ?? 10,
       assigneeId: options.assigneeId,
-      createdBy: options.createdBy,
-    },
-  })
-}
-
-/**
- * Create a test todo
- */
-export async function createTestTodo(
-  familyId: string,
-  title: string,
-  options: {
-    notes?: string
-    assigneeId?: string
-    dueDate?: Date
-    createdBy: string
-  }
-) {
-  return prisma.todo.create({
-    data: {
-      familyId,
-      title: `${TEST_PREFIX}${title}`,
-      notes: options.notes,
-      assigneeId: options.assigneeId,
-      dueDate: options.dueDate,
       createdBy: options.createdBy,
     },
   })

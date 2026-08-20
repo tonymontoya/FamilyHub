@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/auth-utils"
-import { withFlatErrorHandling } from "@/lib/errors"
+import { withErrorHandling } from "@/lib/errors"
 import { format } from "date-fns"
 
 /**
@@ -119,7 +119,7 @@ function escapeICS(text: string): string {
  * - start: Start date (YYYY-MM-DD)
  * - end: End date (YYYY-MM-DD)
  */
-export const GET = withFlatErrorHandling(async (request) => {
+export const GET = withErrorHandling(async (request) => {
   const { member } = await requireAuth()
 
   // Parse query params

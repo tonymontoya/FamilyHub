@@ -104,13 +104,13 @@ export default function CreateChildPage() {
         if (response.status === 409) {
           toast.error("Username already exists. Please choose another.")
         } else {
-          toast.error(result.error || "Failed to create account")
+          toast.error(result.error?.message || "Failed to create account")
         }
         return
       }
 
       // Show success dialog with credentials
-      setCreatedChild(result.credentials)
+      setCreatedChild(result.data.credentials)
       setShowSuccessDialog(true)
       toast.success("Child account created successfully!")
     } catch {

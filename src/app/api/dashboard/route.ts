@@ -1,7 +1,6 @@
-import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/auth-utils"
-import { Errors, withFlatErrorHandling } from "@/lib/errors"
+import { Errors, withErrorHandling, successResponse } from "@/lib/errors"
 import { applyRateLimit } from "@/lib/rate-limit"
 import { rrulestr } from "rrule"
 
@@ -14,7 +13,7 @@ import { rrulestr } from "rrule"
  * PERFORMANCE NOTE: Uses single queries with GROUP BY to avoid N+1 problem.
  * A family with 5 children generates ~5-6 queries total, not 15+.
  */
-export const GET = withFlatErrorHandling(async (request) => {
+export const GET = withErrorHandling(async (request) => {
   const { member } = await requireAuth()
 
   // Rate limit: 60 reads per minute per user
@@ -275,7 +274,7 @@ export const GET = withFlatErrorHandling(async (request) => {
       }))
       .sort((a, b) => b.total - a.total)
 
-    return NextResponse.json({
+    return successResponse({
       ...baseResponse,
       today: {
         ...baseResponse.today,
@@ -294,16 +293,16 @@ export const GET = withFlatErrorHandling(async (request) => {
       points: {
         children: pointsData,
       },
-    }, { headers: rateLimitHeaders })
+    }, 200, rateLimitHeaders)
   } else {
     // Child view - use maps for O(1) lookup
-    return NextResponse.json({
+    return successResponse({
       ...baseResponse,
       points: {
         total: totalPointsMap.get(member.id) || 0,
         thisWeek: weeklyPointsMap.get(member.id) || 0,
         weeklyGoal: 100, // MVP default goal
       },
-    }, { headers: rateLimitHeaders })
+    }, 200, rateLimitHeaders)
   }
 })

@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { requireAuth, requireRole } from "@/lib/auth-utils"
-import { Errors, withFlatErrorHandling } from "@/lib/errors"
+import { Errors, withErrorHandling, createdResponse, successResponse } from "@/lib/errors"
 import { applyRateLimit } from "@/lib/rate-limit"
 import { isValidUUID } from "@/lib/validation"
 import { rrulestr } from "rrule"
@@ -51,7 +50,7 @@ function validateRRule(rruleString: string): { valid: boolean; error?: string } 
  *
  * Create a new chore (parent only).
  */
-export const POST = withFlatErrorHandling(async (request) => {
+export const POST = withErrorHandling(async (request) => {
   const { member } = await requireAuth()
   requireRole(member, "PARENT")
 
@@ -132,7 +131,7 @@ export const POST = withFlatErrorHandling(async (request) => {
     throw error
   }
 
-  return NextResponse.json(
+  return createdResponse(
     {
       id: chore.id,
       title: chore.title,
@@ -144,7 +143,7 @@ export const POST = withFlatErrorHandling(async (request) => {
       status: chore.status,
       createdAt: chore.createdAt,
     },
-    { status: 201, headers: rateLimitHeaders }
+    rateLimitHeaders
   )
 })
 
@@ -153,7 +152,7 @@ export const POST = withFlatErrorHandling(async (request) => {
  *
  * Get chores for the family with optional filters.
  */
-export const GET = withFlatErrorHandling(async (request) => {
+export const GET = withErrorHandling(async (request) => {
   const { member } = await requireAuth()
 
   // Parse query parameters
@@ -197,5 +196,5 @@ export const GET = withFlatErrorHandling(async (request) => {
     },
   })
 
-  return NextResponse.json({ chores })
+  return successResponse({ chores })
 })

@@ -1,7 +1,6 @@
-import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth, requireRole } from "@/lib/auth-utils"
-import { Errors, withFlatErrorHandling } from "@/lib/errors"
+import { Errors, withErrorHandling, successResponse } from "@/lib/errors"
 import { randomInt } from "crypto"
 
 // Generate a cryptographically secure random password
@@ -24,7 +23,7 @@ function generatePassword(): string {
  * Reset a child's password (parent only).
  * Generates a new password and returns it (displayed once).
  */
-export const POST = withFlatErrorHandling(async (_request, context) => {
+export const POST = withErrorHandling(async (_request, context) => {
   const { id: childId } = await context.params
 
   const { member } = await requireAuth()
@@ -85,8 +84,5 @@ export const POST = withFlatErrorHandling(async (_request, context) => {
     data: { password: hashedPassword },
   })
 
-  return NextResponse.json({
-    success: true,
-    newPassword,
-  })
+  return successResponse({ newPassword })
 })

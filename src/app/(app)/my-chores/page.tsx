@@ -47,9 +47,9 @@ export default function MyChoresPage() {
     try {
       const response = await fetch("/api/chores/today")
       if (!response.ok) throw new Error("Failed to fetch chores")
-      const data = await response.json()
-      setChores(data.chores)
-      setStats(data.stats)
+      const body = await response.json()
+      setChores(body.data.chores)
+      setStats(body.data.stats)
     } catch {
       toast.error("Failed to load your chores")
     } finally {
@@ -81,7 +81,7 @@ export default function MyChoresPage() {
 
       if (!response.ok) {
         const result = await response.json()
-        toast.error(result.error || "Failed to complete chore")
+        toast.error(result.error?.message || "Failed to complete chore")
         return
       }
 

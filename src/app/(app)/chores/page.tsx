@@ -51,8 +51,8 @@ export default function ChoresPage() {
       if (!response.ok) {
         throw new Error("Failed to fetch chores")
       }
-      const data = await response.json()
-      setChores(data.chores)
+      const body = await response.json()
+      setChores(body.data.chores)
     } catch {
       toast.error("Failed to load chores")
     } finally {
@@ -76,7 +76,7 @@ export default function ChoresPage() {
 
       if (!response.ok) {
         const result = await response.json()
-        toast.error(result.error || "Failed to archive chore")
+        toast.error(result.error?.message || "Failed to archive chore")
         return
       }
 

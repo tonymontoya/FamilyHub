@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { requireAuth, requireRole } from "@/lib/auth-utils"
-import { Errors, withFlatErrorHandling } from "@/lib/errors"
+import { Errors, withErrorHandling, successResponse } from "@/lib/errors"
 import { applyRateLimit } from "@/lib/rate-limit"
 import { isValidUUID } from "@/lib/validation"
 
@@ -19,7 +18,7 @@ const approveSchema = z.object({
  * Approve a completion and award points to the child.
  * Transactional: All operations succeed or all fail.
  */
-export const POST = withFlatErrorHandling(async (request, context) => {
+export const POST = withErrorHandling(async (request, context) => {
   const { id: completionId } = await context.params
 
   // Validate UUID format
@@ -126,7 +125,7 @@ export const POST = withFlatErrorHandling(async (request, context) => {
     _sum: { amount: true },
   })
 
-  return NextResponse.json({
+  return successResponse({
     id: result.updatedCompletion.id,
     status: "APPROVED",
     pointsAwarded: result.updatedCompletion.pointsAwarded,
@@ -140,5 +139,5 @@ export const POST = withFlatErrorHandling(async (request, context) => {
       id: completion.choreId,
       title: completion.chore.title,
     },
-  }, { headers: rateLimitHeaders })
+  }, 200, rateLimitHeaders)
 })

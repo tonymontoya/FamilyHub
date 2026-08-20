@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   CheckSquare,
-  ListTodo,
   List,
   Users,
   Settings,
@@ -16,7 +15,7 @@ export interface NavItem {
   label: string
   href: string
   icon: LucideIcon
-  badge?: "pendingApprovals" | "pendingCompletions" | "overdueTodos"
+  badge?: "pendingApprovals" | "pendingCompletions"
   children?: NavItem[]
 }
 
@@ -42,12 +41,6 @@ export const navigationConfig: NavConfig = {
       label: "Chores",
       href: "/chores",
       icon: CheckSquare,
-    },
-    {
-      label: "Todos",
-      href: "/todos",
-      icon: ListTodo,
-      badge: "overdueTodos",
     },
     {
       label: "Lists",
@@ -93,12 +86,6 @@ export const navigationConfig: NavConfig = {
       label: "My Chores",
       href: "/chores",
       icon: CheckSquare,
-    },
-    {
-      label: "My Todos",
-      href: "/todos",
-      icon: ListTodo,
-      badge: "overdueTodos",
     },
     {
       label: "Lists",

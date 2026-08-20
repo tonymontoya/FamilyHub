@@ -28,7 +28,7 @@ test.describe('Approvals UI', () => {
       headers: ORIGIN,
     })
     expect(createChildRes.status()).toBe(201)
-    const child = (await createChildRes.json()).child
+    const child = (await createChildRes.json()).data.child
 
     const createChoreRes = await request.post(`${API_URL}/api/chores`, {
       data: {
@@ -40,7 +40,7 @@ test.describe('Approvals UI', () => {
       headers: ORIGIN,
     })
     expect(createChoreRes.status()).toBe(201)
-    const chore = await createChoreRes.json()
+    const chore = (await createChoreRes.json()).data
 
     // Child completes the chore via API in an isolated context.
     const childContext = await playwrightRequest.newContext({ baseURL: API_URL })

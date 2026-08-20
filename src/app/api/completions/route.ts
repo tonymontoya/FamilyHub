@@ -1,4 +1,8 @@
-import { NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { requireAuth } from "@/lib/auth-utils"
+import { Errors, withErrorHandling, successResponse } from "@/lib/errors"
+import { applyRateLimit } from "@/lib/rate-limit"
+import { isValidUUID } from "@/lib/validation"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import type { IncomingMessage } from "http"
@@ -6,11 +10,6 @@ import formidable from "formidable"
 import { promises as fs } from "fs"
 import path from "path"
 import { PassThrough } from "stream"
-import { prisma } from "@/lib/prisma"
-import { requireAuth } from "@/lib/auth-utils"
-import { Errors, withFlatErrorHandling } from "@/lib/errors"
-import { applyRateLimit } from "@/lib/rate-limit"
-import { isValidUUID } from "@/lib/validation"
 import {
   validateFileMetadata,
   saveFile,
@@ -85,7 +84,7 @@ async function parseFormData(
  * Mark a chore as complete with optional photo and notes.
  * Idempotent: Same chore + child + day updates existing completion.
  */
-export const POST = withFlatErrorHandling(async (request) => {
+export const POST = withErrorHandling(async (request) => {
   let uploadedFilePath: string | null = null
   let tempFilePath: string | null = null
 
@@ -293,7 +292,7 @@ export const POST = withFlatErrorHandling(async (request) => {
       }
     }
 
-    return NextResponse.json(
+    return successResponse(
       {
         id: completion.id,
         choreId: completion.choreId,
@@ -308,7 +307,8 @@ export const POST = withFlatErrorHandling(async (request) => {
         memberName: completion.member.displayName,
         updated: isUpdate,
       },
-      { status: isUpdate ? 200 : 201, headers: rateLimitHeaders }
+      isUpdate ? 200 : 201,
+      rateLimitHeaders
     )
   } catch (error) {
     // Error-path cleanup of any uploaded file (orphan prevention)
@@ -335,7 +335,7 @@ export const POST = withFlatErrorHandling(async (request) => {
  * Parents can see all family completions.
  * Children can only see their own.
  */
-export const GET = withFlatErrorHandling(async (request) => {
+export const GET = withErrorHandling(async (request) => {
   const { member } = await requireAuth()
 
   // Parse query parameters
@@ -396,7 +396,7 @@ export const GET = withFlatErrorHandling(async (request) => {
     },
   })
 
-  return NextResponse.json({
+  return successResponse({
     completions: completions.map((c) => ({
       id: c.id,
       choreId: c.choreId,

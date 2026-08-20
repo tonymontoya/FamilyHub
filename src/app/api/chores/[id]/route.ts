@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server"
 import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { requireAuth, requireRole } from "@/lib/auth-utils"
-import { Errors, withFlatErrorHandling } from "@/lib/errors"
+import { Errors, withErrorHandling, successResponse } from "@/lib/errors"
 import { isValidUUID } from "@/lib/validation"
 import { rrulestr } from "rrule"
 
@@ -55,7 +54,7 @@ function validateRRule(rruleString: string): { valid: boolean; error?: string } 
  *
  * Update chore details (parent only).
  */
-export const PATCH = withFlatErrorHandling(async (request, context) => {
+export const PATCH = withErrorHandling(async (request, context) => {
   const { id: choreId } = await context.params
 
   // Validate UUID format
@@ -154,7 +153,7 @@ export const PATCH = withFlatErrorHandling(async (request, context) => {
     },
   })
 
-  return NextResponse.json({
+  return successResponse({
     id: updatedChore.id,
     title: updatedChore.title,
     description: updatedChore.description,
@@ -173,7 +172,7 @@ export const PATCH = withFlatErrorHandling(async (request, context) => {
  *
  * Soft delete (archive) a chore (parent only).
  */
-export const DELETE = withFlatErrorHandling(async (_request, context) => {
+export const DELETE = withErrorHandling(async (_request, context) => {
   const { id: choreId } = await context.params
 
   // Validate UUID format
@@ -207,8 +206,7 @@ export const DELETE = withFlatErrorHandling(async (_request, context) => {
     },
   })
 
-  return NextResponse.json({
-    success: true,
+  return successResponse({
     message: "Chore archived successfully",
   })
 })
